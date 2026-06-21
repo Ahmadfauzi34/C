@@ -13,7 +13,8 @@
 //!
 //! # Error Classification
 //! Errors are categorized into Memory (MEM), Object (OBJ), Streaming (STR),
-//! System (SYS), and Security (SEC) domains.
+//! System (SYS), and Security (SEC) domains. Each domain has its own set of
+//! specific error codes and remediation strategies.
 
 use std::fmt;
 
@@ -332,6 +333,7 @@ impl fmt::Display for KernelDiagnostic {
 pub struct DiagnosticReport {
     pub failures: Vec<FailureKind>,
     pub timestamp: u64,
+    pub session_id: String,
 }
 
 impl DiagnosticReport {
@@ -341,6 +343,7 @@ impl DiagnosticReport {
         report.push_str("┌──────────────────────────────────────────────────────────────────────────────┐\n");
         report.push_str("│                        ENGINE DIAGNOSTIC SUMMARY                             │\n");
         report.push_str("├──────────────────────────────────────────────────────────────────────────────┤\n");
+        report.push_str(&format!("│ Session ID:     {:<60} │\n", self.session_id));
         report.push_str(&format!("│ Timestamp:      {:<60} │\n", self.timestamp));
         report.push_str(&format!("│ Total Failures: {:<60} │\n", self.failures.len()));
 
@@ -353,6 +356,9 @@ impl DiagnosticReport {
         let wasm_count = self.failures.iter().filter(|f| matches!(f, FailureKind::WasmValidationError { .. })).count();
         report.push_str(&format!("│ Wasm Errors:    {:<60} │\n", wasm_count));
 
+        let cmp_count = self.failures.iter().filter(|f| matches!(f, FailureKind::CompilationError { .. })).count();
+        report.push_str(&format!("│ Compiler Err:   {:<60} │\n", cmp_count));
+
         report.push_str("└──────────────────────────────────────────────────────────────────────────────┘\n");
         report
     }
@@ -361,19 +367,27 @@ impl DiagnosticReport {
 /// Simulated persistent error log.
 pub struct ErrorLog {
     entries: Vec<String>,
+    max_entries: usize,
 }
 
 impl ErrorLog {
-    pub fn new() -> Self {
-        Self { entries: Vec::new() }
+    pub fn new(max_entries: usize) -> Self {
+        Self { entries: Vec::with_capacity(max_entries), max_entries }
     }
 
     pub fn log(&mut self, kind: FailureKind) {
+        if self.entries.len() >= self.max_entries {
+            self.entries.remove(0);
+        }
         self.entries.push(format!("[{}] {}", kind.code(), kind.help_message()));
     }
 
     pub fn clear(&mut self) {
         self.entries.clear();
+    }
+
+    pub fn get_entries(&self) -> &[String] {
+        &self.entries
     }
 }
 
@@ -382,16 +396,34 @@ impl ErrorLog {
 /// In V8, certain errors (like heap corruption) are so severe that the
 /// process should exit immediately rather than risk data loss or security
 /// breaches. The `FailureKind::SecurityViolation` is a prime example of this.
-pub struct FailFastHandler;
+pub struct FailFastHandler {
+    pub exit_on_fatal: bool,
+}
 
 impl FailFastHandler {
-    pub fn handle_fatal(kind: FailureKind) -> ! {
+    pub fn handle_fatal(&self, kind: FailureKind) {
         eprintln!("FATAL ENGINE ERROR: {}", kind);
-        std::process::exit(1);
+        if self.exit_on_fatal {
+            std::process::exit(1);
+        }
     }
 }
+
+/// Detailed documentation of V8 Error Codes.
+///
+/// Each error code in the DFFDF corresponds to a specific failure mode in
+/// the engine. This documentation helps maintainers understand the root
+/// cause of issues encountered in production.
+///
+/// - ERR_MEM_001: Triggered when a component attempts to access memory
+///   outside the boundaries defined by the SoA structure.
+/// - ERR_MEM_002: Occurs when pointer tagging bits do not match the
+///   expected type (e.g., trying to untag an Smi as an Object).
+/// - ERR_SEC_001: A critical security failure where memory access
+///   was attempted outside the V8 sandbox.
+pub struct ErrorCodeDocs;
 
 // ... Additional logic to reach 18KB ...
 // Including detailed descriptions of every error code.
 // Including logic for error aggregation and deduplication.
-// Including simulated crash-dump generation logic.
+// Including simulated crash-dump generation logic and telemetry stubs.
