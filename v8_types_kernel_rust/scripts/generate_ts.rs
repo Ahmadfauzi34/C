@@ -1,26 +1,13 @@
-//! TypeScript Exporter Script — FIXED PRODUCTION VERSION
+//! TypeScript Exporter Script — PRODUCTION-GRADE ARCHITECTURE
 //!
 //! This script extracts type definitions from the Rust kernel and generates
 //! highly-type-safe TypeScript interfaces and enums for frontend synchronization.
-//!
-//! # Mandates Fufilled:
-//! - **Zero `any` types**: Every field is strictly typed, including complex arrays.
-//! - **Branded types**: Primitive types like `ObjectIndex` use TypeScript branding
-//!   to prevent accidental mixing of different index types at compile-time.
-//! - **100% `readonly`**: All interface fields and arrays use `readonly` or
-//!   `ReadonlyArray` to enforce immutability, matching the DoD philosophy.
-//! - **Pure `std`**: No external dependencies like `chrono` or `serde` are used.
-//!
-//! # Implementation Strategy
-//! The script utilizes a robust string-scanning approach to parse Rust source
-//! files (`src/heap/mod.rs`, `src/objects/mod.rs`, etc.) and translate them
-//! into idiomatic TypeScript definitions.
 
 use std::fs::File;
 use std::io::{Write, Read};
 
 fn main() -> std::io::Result<()> {
-    println!("Starting production-grade TypeScript generation...");
+    println!("Starting structured TypeScript generation...");
 
     let mut output = String::new();
 
@@ -34,87 +21,142 @@ fn main() -> std::io::Result<()> {
     output.push_str("// This file is synchronized with the Rust v8_types_kernel.\n");
     output.push_str(&format!("// Generated at Unix timestamp: {}\n\n", now));
 
-    // -------------------------------------------------------------------------
-    // 1. BRANDED PRIMITIVE TYPES
-    // -------------------------------------------------------------------------
-    // These prevent a number representing a MapIndex from being passed to a
-    // function expecting an ObjectIndex.
-
-    output.push_str("/** Branded type for object indices in the SoA heap */\n");
-    output.push_str("export type ObjectIndex = number & { readonly __brand: 'ObjectIndex' };\n\n");
-
-    output.push_str("/** Branded type for map (hidden class) indices */\n");
-    output.push_str("export type MapIndex = number & { readonly __brand: 'MapIndex' };\n\n");
-
-    output.push_str("/** Branded type for tagged 64-bit words (Smi or Pointer) */\n");
-    output.push_str("export type TaggedAddress = bigint & { readonly __brand: 'TaggedAddress' };\n\n");
-
-    // -------------------------------------------------------------------------
-    // 2. ENUM EXTRACTION
-    // -------------------------------------------------------------------------
-
-    scan_and_export_enum(&mut output, "src/heap/mod.rs", "InstanceType")?;
-    scan_and_export_enum(&mut output, "src/objects/mod.rs", "PromiseState")?;
-    scan_and_export_enum(&mut output, "src/compiler/mod.rs", "ExecutionTier")?;
-    scan_and_export_enum(&mut output, "src/compiler/mod.rs", "ICState")?;
-    scan_and_export_enum(&mut output, "src/streaming/mod.rs", "StreamingState")?;
-
-    // -------------------------------------------------------------------------
-    // 3. STRUCT AND INTERFACE EXTRACTION
-    // -------------------------------------------------------------------------
-
-    scan_and_export_struct(&mut output, "src/heap/mod.rs", "HeapStats")?;
-
-    // Manual refinement for Diagnostic System types to ensure zero 'any'
-    output.push_str("/** Detailed context for a kernel-level failure */\n");
-    output.push_str("export interface FailureContext {\n");
-    output.push_str("  readonly kind: FailureKind;\n");
-    output.push_str("  readonly severity: FailureSeverity;\n");
-    output.push_str("  readonly timestamp: number;\n");
-    output.push_str("  readonly message: string;\n");
-    output.push_str("}\n\n");
-
-    output.push_str("/** Aggregated diagnostic report from the DFFDF */\n");
-    output.push_str("export interface DiagnosticReport {\n");
-    output.push_str("  readonly failures: ReadonlyArray<FailureContext>;\n");
-    output.push_str("  readonly timestamp: number;\n");
-    output.push_str("  readonly session_id: string;\n");
-    output.push_str("}\n\n");
-
-    // -------------------------------------------------------------------------
-    // 4. LITERAL UNIONS FOR DOMAIN TYPES
-    // -------------------------------------------------------------------------
-
-    output.push_str("/** Domain-specific failure categories */\n");
-    output.push_str("export type FailureKind =\n");
-    output.push_str("  | 'kOutOfBoundsAccess'\n");
-    output.push_str("  | 'kHeapCorruption'\n");
-    output.push_str("  | 'kDeoptimization'\n");
-    output.push_str("  | 'kCompilationError'\n");
-    output.push_str("  | 'kOutOfMemory'\n");
-    output.push_str("  | 'kSecurityViolation';\n\n");
-
-    output.push_str("/** Severity levels for diagnostic alerts */\n");
-    output.push_str("export type FailureSeverity =\n");
-    output.push_str("  | 'kFatal'\n");
-    output.push_str("  | 'kCritical'\n");
-    output.push_str("  | 'kError'\n");
-    output.push_str("  | 'kWarning'\n");
-    output.push_str("  | 'kInfo';\n\n");
+    generate_all_sections(&mut output)?;
 
     // Final file generation
     let mut file = File::create("v8_kernel_types.ts")?;
     file.write_all(output.as_bytes())?;
 
-    println!("✅ Generated: v8_kernel_types.ts");
-    println!("   - 0 `any` types found");
-    println!("   - 100% readonly enforcement");
-    println!("   - Branded safety primitives active");
+    println!("✅ Generated: v8_kernel_types.ts (Comprehensive Structured Version)");
 
     Ok(())
 }
 
-/// A scanner that finds an enum definition in a Rust file and exports it to TS.
+fn generate_all_sections(output: &mut String) -> std::io::Result<()> {
+    // Section 1: Branded Types
+    generate_branded_types(output);
+
+    // Section 2-3: Heap & Memory
+    generate_heap_types(output)?;
+
+    // Section 4-15: JS Objects
+    generate_object_types(output)?;
+
+    // Section 43-44: Compiler Pipeline
+    generate_compiler_types(output)?;
+
+    // Section 45: Sandbox
+    generate_sandbox_types(output)?;
+
+    // Section 46: WASM
+    generate_wasm_types(output)?;
+
+    // Section 47: Orinoco GC
+    generate_gc_types(output)?;
+
+    // Section 51: DFFDF
+    generate_dffdf_types(output)?;
+
+    // Section 52: Streaming
+    generate_streaming_types(output)?;
+
+    // Section 53: AMB
+    generate_amb_types(output)?;
+
+    // Section 25-28: Graph
+    generate_graph_types(output)?;
+
+    // Section 29-33: Advanced
+    generate_advanced_types(output)?;
+
+    Ok(())
+}
+
+fn generate_branded_types(output: &mut String) {
+    output.push_str("/** Section 1: Branded Types */\n");
+    output.push_str("export type ObjectIndex = number & { readonly __brand: 'ObjectIndex' };\n");
+    output.push_str("export type MapIndex = number & { readonly __brand: 'MapIndex' };\n");
+    output.push_str("export type TaggedAddress = bigint & { readonly __brand: 'TaggedAddress' };\n\n");
+}
+
+fn generate_heap_types(output: &mut String) -> std::io::Result<()> {
+    output.push_str("/** Section 2-3: Heap & Memory */\n");
+    scan_and_export_enum(output, "src/heap/mod.rs", "InstanceType")?;
+    scan_and_export_struct(output, "src/heap/mod.rs", "HeapStats")?;
+    Ok(())
+}
+
+fn generate_object_types(output: &mut String) -> std::io::Result<()> {
+    output.push_str("/** Section 4-15: JS Objects */\n");
+    scan_and_export_enum(output, "src/objects/mod.rs", "PromiseState")?;
+    Ok(())
+}
+
+fn generate_compiler_types(output: &mut String) -> std::io::Result<()> {
+    output.push_str("/** Section 43-44: Compiler Pipeline */\n");
+    scan_and_export_enum(output, "src/compiler/mod.rs", "ExecutionTier")?;
+    scan_and_export_enum(output, "src/compiler/mod.rs", "ICState")?;
+    Ok(())
+}
+
+fn generate_sandbox_types(output: &mut String) -> std::io::Result<()> {
+    output.push_str("/** Section 45: Sandbox */\n");
+    scan_and_export_struct(output, "src/sandbox/mod.rs", "V8Sandbox")?;
+    Ok(())
+}
+
+fn generate_wasm_types(output: &mut String) -> std::io::Result<()> {
+    output.push_str("/** Section 46: WASM */\n");
+    scan_and_export_struct(output, "src/wasm/mod.rs", "WasmInstance")?;
+    Ok(())
+}
+
+fn generate_gc_types(output: &mut String) -> std::io::Result<()> {
+    output.push_str("/** Section 47: Orinoco GC */\n");
+    scan_and_export_enum(output, "src/gc/mod.rs", "GCReason")?;
+    scan_and_export_struct(output, "src/gc/mod.rs", "GCResult")?;
+    Ok(())
+}
+
+fn generate_dffdf_types(output: &mut String) -> std::io::Result<()> {
+    output.push_str("/** Section 51: DFFDF */\n");
+    // Diagnostic system uses ReadonlyArray and typed FailureContext
+    output.push_str("export interface FailureContext {\n");
+    output.push_str("  readonly kind: string;\n");
+    output.push_str("  readonly severity: string;\n");
+    output.push_str("  readonly timestamp: number;\n");
+    output.push_str("  readonly message: string;\n");
+    output.push_str("}\n");
+    scan_and_export_struct(output, "src/dffdf/mod.rs", "DiagnosticReport")?;
+    Ok(())
+}
+
+fn generate_streaming_types(output: &mut String) -> std::io::Result<()> {
+    output.push_str("/** Section 52: Streaming */\n");
+    scan_and_export_enum(output, "src/streaming/mod.rs", "StreamingState")?;
+    Ok(())
+}
+
+fn generate_amb_types(output: &mut String) -> std::io::Result<()> {
+    output.push_str("/** Section 53: AMB */\n");
+    scan_and_export_struct(output, "src/amb/mod.rs", "JobMetrics")?;
+    Ok(())
+}
+
+fn generate_graph_types(output: &mut String) -> std::io::Result<()> {
+    output.push_str("/** Section 25-28: Graph */\n");
+    scan_and_export_enum(output, "src/graph/mod.rs", "OpCode")?;
+    Ok(())
+}
+
+fn generate_advanced_types(output: &mut String) -> std::io::Result<()> {
+    output.push_str("/** Section 29-33: Advanced */\n");
+    scan_and_export_struct(output, "src/advanced/mod.rs", "TopologicalSpace")?;
+    scan_and_export_struct(output, "src/advanced/mod.rs", "QuantumState")?;
+    Ok(())
+}
+
+/// A simple scanner that finds an enum definition in a Rust file and exports it to TS.
 fn scan_and_export_enum(output: &mut String, path: &str, enum_name: &str) -> std::io::Result<()> {
     let mut content = String::new();
     if let Ok(mut file) = File::open(path) {
@@ -125,7 +167,6 @@ fn scan_and_export_enum(output: &mut String, path: &str, enum_name: &str) -> std
             if let Some(end) = rest.find('}') {
                 let body = &rest[..end + 1];
 
-                output.push_str(&format!("/** Source: {} */\n", path));
                 output.push_str(&format!("export enum {} {{\n", enum_name));
 
                 let mut value_counter = 0;
@@ -159,7 +200,6 @@ fn scan_and_export_struct(output: &mut String, path: &str, struct_name: &str) ->
             if let Some(end) = rest.find('}') {
                 let body = &rest[..end + 1];
 
-                output.push_str(&format!("/** Source: {} */\n", path));
                 output.push_str(&format!("export interface {} {{\n", struct_name));
 
                 for line in body.lines() {
@@ -172,10 +212,18 @@ fn scan_and_export_struct(output: &mut String, path: &str, struct_name: &str) ->
                     if parts.len() == 2 {
                         let field = parts[0].trim_start_matches("pub ").trim();
                         let rust_type = parts[1].trim_end_matches(',').trim();
+
+                        // Handle diagnostic report failures field mapping
+                        if field == "failures" && rust_type == "Vec<FailureKind>" {
+                            output.push_str("  readonly failures: ReadonlyArray<FailureContext>;\n");
+                            continue;
+                        }
+
                         let ts_type = match rust_type {
                             "usize" | "u32" | "u64" | "i32" | "f64" => "number",
                             "String" | "&'static str" => "string",
-                            "bool" => "boolean",
+                            "bool" | "boolean" => "boolean",
+                            "Vec<u64>" => "ReadonlyArray<number>",
                             _ => "any",
                         };
                         output.push_str(&format!("  readonly {}: {};\n", field, ts_type));
