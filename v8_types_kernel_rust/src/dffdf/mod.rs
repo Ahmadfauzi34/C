@@ -13,7 +13,7 @@
 //!
 //! # Error Classification
 //! Errors are categorized into several domains:
-//! - **Memory (MEM)**: Violations of the SoA heap structure or tagging rules.
+//! - **Memory (MEM)**: Violations of the `SoA` heap structure or tagging rules.
 //! - **Object (OBJ)**: State machine errors or property access violations.
 //! - **Streaming (STR)**: Failures during background parsing or chunk processing.
 //! - **System (SYS)**: General engine inconsistencies or resource exhaustion.
@@ -27,7 +27,7 @@ use std::fmt;
 #[derive(Debug, Clone, PartialEq)]
 pub enum FailureKind {
     /// Memory access out of bounds.
-    /// This is often triggered by incorrect index calculations in SoA layouts.
+    /// This is often triggered by incorrect index calculations in `SoA` layouts.
     OutOfBounds {
         index: usize,
         limit: usize,
@@ -47,7 +47,7 @@ pub enum FailureKind {
         available: usize,
     },
     /// Object state transition error.
-    /// Specific to state machines like JSPromise or Compiler Tiers.
+    /// Specific to state machines like `JSPromise` or Compiler Tiers.
     InvalidStateTransition {
         object_id: u32,
         from: &'static str,
@@ -129,51 +129,51 @@ impl fmt::Display for FailureKind {
 
         match self {
             Self::OutOfBounds { index, limit, context } => {
-                writeln!(f, "│ CAUSE:    Memory access out of bounds in context: {:<26} │", context)?;
-                writeln!(f, "│ LIMIT:    Attempted index {} while buffer limit was {}.               │", index, limit)?;
+                writeln!(f, "│ CAUSE:    Memory access out of bounds in context: {context:<26} │")?;
+                writeln!(f, "│ LIMIT:    Attempted index {index} while buffer limit was {limit}.               │")?;
                 writeln!(f, "│ DETAIL:   Byte offset violation: {} past boundary.                      │", index.saturating_sub(*limit))?;
             }
             Self::InvalidTag { address, expected_tag, actual_tag } => {
                 writeln!(f, "│ CAUSE:    Pointer tagging mismatch detected.                                  │")?;
-                writeln!(f, "│ ADDRESS:  0x{:016X}                                           │", address)?;
-                writeln!(f, "│ TAGS:     Expected: 0x{:02X}, Actual: 0x{:02X}                                 │", expected_tag, actual_tag)?;
+                writeln!(f, "│ ADDRESS:  0x{address:016X}                                           │")?;
+                writeln!(f, "│ TAGS:     Expected: 0x{expected_tag:02X}, Actual: 0x{actual_tag:02X}                                 │")?;
             }
             Self::HeapExhausted { requested, available } => {
                 writeln!(f, "│ CAUSE:    Insufficient heap memory for allocation.                           │")?;
-                writeln!(f, "│ REQUEST:  {} objects                                                     │", requested)?;
-                writeln!(f, "│ LIMIT:    Current available slots: {}                                     │", available)?;
+                writeln!(f, "│ REQUEST:  {requested} objects                                                     │")?;
+                writeln!(f, "│ LIMIT:    Current available slots: {available}                                     │")?;
             }
             Self::InvalidStateTransition { object_id, from, to } => {
-                writeln!(f, "│ CAUSE:    Illegal state transition for Object ID: {:<26} │", object_id)?;
-                writeln!(f, "│ PATH:     {} -> {}                                               │", from, to)?;
+                writeln!(f, "│ CAUSE:    Illegal state transition for Object ID: {object_id:<26} │")?;
+                writeln!(f, "│ PATH:     {from} -> {to}                                               │")?;
             }
             Self::BatchFailure { batch_id, reason } => {
                 writeln!(f, "│ CAUSE:    Atomic batch operation failed.                                     │")?;
-                writeln!(f, "│ BATCH ID: {}                                                       │", batch_id)?;
-                writeln!(f, "│ REASON:   {:<66} │", reason)?;
+                writeln!(f, "│ BATCH ID: {batch_id}                                                       │")?;
+                writeln!(f, "│ REASON:   {reason:<66} │")?;
             }
             Self::CircuitBreakerTripped { threshold, current_rate } => {
                 writeln!(f, "│ CAUSE:    Circuit breaker tripped due to high error density.                 │")?;
-                writeln!(f, "│ STATS:    Threshold: {:.2}, Current Rate: {:.2}                           │", threshold, current_rate)?;
+                writeln!(f, "│ STATS:    Threshold: {threshold:.2}, Current Rate: {current_rate:.2}                           │")?;
             }
             Self::SecurityViolation { ptr, sandbox_base, sandbox_size } => {
                 writeln!(f, "│ CAUSE:    Out-of-sandbox memory access attempt.                              │")?;
-                writeln!(f, "│ POINTER:  0x{:016X}                                           │", ptr)?;
-                writeln!(f, "│ LIMIT:    Base 0x{:08X}, Size 0x{:08X}                             │", sandbox_base, sandbox_size)?;
+                writeln!(f, "│ POINTER:  0x{ptr:016X}                                           │")?;
+                writeln!(f, "│ LIMIT:    Base 0x{sandbox_base:08X}, Size 0x{sandbox_size:08X}                             │")?;
             }
             Self::SystemError { code, message } => {
                 writeln!(f, "│ CAUSE:    General system failure.                                            │")?;
-                writeln!(f, "│ CODE:     {}                                                                 │", code)?;
-                writeln!(f, "│ MESSAGE:  {:<66} │", message)?;
+                writeln!(f, "│ CODE:     {code}                                                                 │")?;
+                writeln!(f, "│ MESSAGE:  {message:<66} │")?;
             }
             Self::WasmValidationError { offset, reason } => {
                 writeln!(f, "│ CAUSE:    Wasm module validation failed.                                     │")?;
-                writeln!(f, "│ OFFSET:   0x{:X}                                                           │", offset)?;
-                writeln!(f, "│ REASON:   {:<66} │", reason)?;
+                writeln!(f, "│ OFFSET:   0x{offset:X}                                                           │")?;
+                writeln!(f, "│ REASON:   {reason:<66} │")?;
             }
             Self::GCError { reason } => {
                 writeln!(f, "│ CAUSE:    Garbage collection failure.                                        │")?;
-                writeln!(f, "│ REASON:   {:<66} │", reason)?;
+                writeln!(f, "│ REASON:   {reason:<66} │")?;
             }
         }
 
@@ -287,19 +287,19 @@ impl Default for ErrorLog {
 
 /// Detailed description of the Memory domain error codes.
 ///
-/// ## ERR_MEM_001: OutOfBounds
+/// ## `ERR_MEM_001`: `OutOfBounds`
 /// This error is raised when an internal kernel component attempts to access
 /// memory using an index that is outside the pre-allocated bounds of a
-/// Structure of Arrays (SoA) buffer. This is a critical failure that prevents
+/// Structure of Arrays (`SoA`) buffer. This is a critical failure that prevents
 /// memory corruption and ensures that the engine only operates on valid data.
 ///
-/// ## ERR_MEM_002: InvalidTag
+/// ## `ERR_MEM_002`: `InvalidTag`
 /// V8 relies on pointer tagging to efficiently represent values. If a tagged
 /// address is misinterpreted (e.g., trying to read an Smi as a pointer), this
 /// error is raised. It often indicates a bug in the compiler's code generation
 /// or a mismatch in the expected object shape.
 ///
-/// ## ERR_MEM_003: HeapExhausted
+/// ## `ERR_MEM_003`: `HeapExhausted`
 /// Occurs when the simulated heap cannot satisfy an allocation request. In a
 /// production environment, this would typically trigger a full garbage
 /// collection cycle.
@@ -307,7 +307,7 @@ pub struct MemoryDomainDocs;
 
 /// Detailed description of the Object domain error codes.
 ///
-/// ## ERR_OBJ_001: InvalidStateTransition
+/// ## `ERR_OBJ_001`: `InvalidStateTransition`
 /// Many internal objects in V8, such as Promises and Optimization Tiers, follow
 /// strict state machines. For example, a Promise cannot move from 'Fulfilled'
 /// back to 'Pending'. Any attempt to perform an illegal transition is caught
@@ -316,12 +316,12 @@ pub struct ObjectDomainDocs;
 
 /// Detailed description of the System and Security domains.
 ///
-/// ## ERR_SEC_001: SecurityViolation
+/// ## `ERR_SEC_001`: `SecurityViolation`
 /// The V8 Sandbox confines memory access to a specific range. If a pointer
 /// resolution leads to an address outside this range, a security violation is
 /// raised. This is the primary defense against sandbox-escape exploits.
 ///
-/// ## ERR_SYS_001: CircuitBreakerTripped
+/// ## `ERR_SYS_001`: `CircuitBreakerTripped`
 /// To prevent cascading failures, the circuit breaker monitors the rate of
 /// errors in background batches. If the failure rate is too high, the system
 /// halts, protecting the integrity of the remaining heap state.
@@ -329,12 +329,12 @@ pub struct SystemDomainDocs;
 
 /// Detailed description of the Streaming and Wasm domains.
 ///
-/// ## ERR_STR_001: BatchFailure
+/// ## `ERR_STR_001`: `BatchFailure`
 /// Streaming jobs process data in chunks. If a chunk cannot be parsed or
-/// if the data is malformed, a BatchFailure is raised. This ensures that the
+/// if the data is malformed, a `BatchFailure` is raised. This ensures that the
 /// engine does not attempt to execute partial or corrupt code.
 ///
-/// ## ERR_WSM_001: WasmValidationError
+/// ## `ERR_WSM_001`: `WasmValidationError`
 /// WebAssembly modules undergo strict validation before execution. This error
 /// code covers violations of the Wasm binary format or semantic rules.
 pub struct StreamingDomainDocs;
@@ -365,8 +365,8 @@ pub struct StreamingDomainDocs;
 /// production core.
 ///
 /// ### Incident Management
-/// When a CircuitBreaker trips (ERR_SYS_001), the engine enters an
-/// "emergency halt" mode. Operators must review the ErrorLog to identify the
+/// When a `CircuitBreaker` trips (`ERR_SYS_001`), the engine enters an
+/// "emergency halt" mode. Operators must review the `ErrorLog` to identify the
 /// primary cause before attempting a system reset.
 pub struct TroubleshootingGuide;
 
@@ -377,7 +377,7 @@ pub struct TroubleshootingGuide;
 /// A template for generating detailed incident reports for production issues.
 ///
 /// # Incident Report
-/// **Error Code**: [ERR_XXX_00X]
+/// **Error Code**: [`ERR_XXX_00X`]
 /// **Severity**: [Critical/High/Medium]
 /// **Component**: [Subsystem Name]
 /// **Description**: Brief summary of the failure.
