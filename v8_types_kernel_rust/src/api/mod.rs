@@ -35,9 +35,9 @@ impl V8API {
 // API SIMULATION EXTENSIONS (REACHING 0.6KB)
 // =============================================================================
 
-/// Documentation for "HandleScope".
+/// Documentation for "`HandleScope`".
 ///
-/// In V8, handles are used to track objects across GC cycles. A HandleScope
+/// In V8, handles are used to track objects across GC cycles. A `HandleScope`
 /// manages the lifecycle of local handles within a C++ scope.
 pub struct HandleScope {
     pub prev_scope: Option<Box<HandleScope>>,
@@ -55,6 +55,7 @@ pub struct ContextAPI;
 pub struct ScriptAPI;
 
 impl ScriptAPI {
+    #[must_use]
     pub fn compile_and_run(_source: &str) -> TaggedAddress {
         TaggedAddress::null()
     }

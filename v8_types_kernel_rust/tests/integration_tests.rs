@@ -177,7 +177,7 @@ fn stress_test_diagnostics() {
     let output = format!("{}", err);
     assert!(output.contains("ERR_MEM_001"));
     assert!(output.contains("Stress Test"));
-    assert!(output.contains("Index 100 accessed while limit is 50"));
+    assert!(output.contains("Attempted index 100 while buffer limit was 50"));
 }
 
 // ... Additional tests for each module ...

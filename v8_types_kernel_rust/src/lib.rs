@@ -45,7 +45,11 @@ use crate::dffdf::FailureKind;
 /// Guaranteed to never panic and always return a structured diagnostic.
 pub type KernelResult<T> = Result<T, FailureKind>;
 
-/// Re-exports for easier access.
+/// Re-exports for public API surface.
 pub use branded::{RawAddress, Smi, TaggedAddress};
-pub use dffdf::{CircuitBreaker};
-pub use heap::{Heap, ObjectIndex};
+pub use dffdf::{CircuitBreaker, FailureKind as KernelError};
+pub use heap::{Heap, ObjectIndex, MapIndex, InstanceType};
+pub use objects::{JSObject, JSPromise, JSArray, JSFunction, PromiseState};
+pub use amb::{MacroBatcher, AtomicBatch};
+pub use streaming::{ScriptStreamingJob, WasmStreamingJob};
+pub use compiler::{ExecutionTier, ICState};

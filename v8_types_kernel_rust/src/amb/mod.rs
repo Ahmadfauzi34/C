@@ -37,8 +37,8 @@ use crate::dffdf::{FailureKind, CircuitBreaker};
 /// should be rolled back or aborted to maintain heap consistency.
 pub struct AtomicBatch {
     pub id: u64,
-    /// Operations are boxed closures that return a KernelResult.
-    /// Using dyn FnOnce allows for flexible operation definitions.
+    /// Operations are boxed closures that return a `KernelResult`.
+    /// Using dyn `FnOnce` allows for flexible operation definitions.
     pub operations: Vec<Box<dyn FnOnce() -> KernelResult<()>>>,
 }
 
@@ -58,7 +58,8 @@ pub struct MacroBatcher {
 }
 
 impl MacroBatcher {
-    /// Creates a new MacroBatcher with a circuit breaker.
+    /// Creates a new `MacroBatcher` with a circuit breaker.
+    #[must_use]
     pub fn new() -> Self {
         Self {
             // Require at least 5 operations before tripping, 10% threshold.
@@ -93,7 +94,7 @@ impl MacroBatcher {
             if let Err(e) = res {
                 return Err(FailureKind::BatchFailure {
                     batch_id,
-                    reason: format!("Operation failed in batch: {:?}", e),
+                    reason: format!("Operation failed in batch: {e:?}"),
                 });
             }
         }
@@ -120,7 +121,7 @@ impl MacroBatcher {
 // EXTENDED BATCHING LOGIC TO REACH 16 KB
 // =============================================================================
 
-/// Simulates a V8 JobTask for background processing.
+/// Simulates a V8 `JobTask` for background processing.
 ///
 /// Jobs are units of work that can be executed on background threads.
 pub trait JobTask {
@@ -203,7 +204,7 @@ impl JobTask for BackgroundMarkingJob {
     }
 }
 
-/// A worker thread simulation that pulls from the MacroBatcher.
+/// A worker thread simulation that pulls from the `MacroBatcher`.
 pub struct BackgroundWorker {
     pub worker_id: u32,
     pub state: WorkerState,
@@ -235,7 +236,7 @@ impl BackgroundWorker {
 ///
 /// V8 depends on the embedding platform (e.g., Chrome, Node.js) to provide
 /// a way to schedule background tasks. This simulation models that
-/// dependency via the JobTask trait and a simulated JobRunner.
+/// dependency via the `JobTask` trait and a simulated `JobRunner`.
 pub struct PlatformJobRunner {
     pub max_threads: usize,
     pub active_threads: usize,
@@ -250,6 +251,7 @@ pub enum SchedulerPolicy {
 }
 
 impl PlatformJobRunner {
+    #[must_use]
     pub fn new(max_threads: usize) -> Self {
         Self {
             max_threads,
@@ -280,6 +282,7 @@ pub struct MemoryTransaction {
 }
 
 impl MemoryTransaction {
+    #[must_use]
     pub fn begin() -> Self {
         Self {
             id: 1,
@@ -305,7 +308,7 @@ impl MemoryTransaction {
 // ADDITIONAL BATCHING DEPTH (REACHING 16KB+)
 // =============================================================================
 
-/// Simulated TaskQueue for managing background work.
+/// Simulated `TaskQueue` for managing background work.
 pub struct TaskQueue {
     pub tasks: Vec<Box<dyn JobTask>>,
     pub max_capacity: usize,
@@ -314,6 +317,7 @@ pub struct TaskQueue {
 }
 
 impl TaskQueue {
+    #[must_use]
     pub fn new(capacity: usize) -> Self {
         Self {
             tasks: Vec::with_capacity(capacity),
@@ -396,6 +400,7 @@ pub struct V8ThreadPool {
 }
 
 impl V8ThreadPool {
+    #[must_use]
     pub fn get_recommended_thread_count() -> usize {
         // Simulation of logic to determine thread count based on hardware.
         // Typical V8 logic: number of cores - 1, capped at 16 or similar.
@@ -457,6 +462,7 @@ pub struct Semaphore {
 }
 
 impl Semaphore {
+    #[must_use]
     pub fn new(count: usize, name: &'static str) -> Self {
         Self { count, name }
     }
@@ -487,9 +493,9 @@ pub mod background_sync {
     }
 }
 
-/// Description of the "JobDelegate".
+/// Description of the "`JobDelegate`".
 ///
-/// The JobDelegate is an interface that allows V8 to communicate with the
+/// The `JobDelegate` is an interface that allows V8 to communicate with the
 /// platform about the status of a background job (e.g., if it should yield
 /// because a higher-priority task needs the CPU).
 pub struct JobDelegate {
@@ -499,6 +505,7 @@ pub struct JobDelegate {
 }
 
 impl JobDelegate {
+    #[must_use]
     pub fn new(job_id: u64) -> Self {
         Self { should_yield: false, job_id, yield_count: 0 }
     }
@@ -518,7 +525,14 @@ pub struct JobMetrics {
     pub peak_queue_depth: usize,
 }
 
+impl Default for JobMetrics {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl JobMetrics {
+    #[must_use]
     pub fn new() -> Self {
         Self {
             total_jobs_spawned: 0,

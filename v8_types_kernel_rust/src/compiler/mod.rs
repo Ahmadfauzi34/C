@@ -38,7 +38,14 @@ pub enum ICState {
     Generic,
 }
 
+impl Default for InlineCache {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl InlineCache {
+    #[must_use]
     pub fn new() -> Self {
         Self {
             state: ICState::Uninitialized,
@@ -124,6 +131,7 @@ pub struct RegisterAllocator {
 }
 
 impl RegisterAllocator {
+    #[must_use]
     pub fn allocate_for_node(_node_id: u32) -> u32 {
         0 // Returns register index
     }

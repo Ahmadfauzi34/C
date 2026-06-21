@@ -28,6 +28,7 @@ pub struct SandboxPtr(pub u32);
 
 impl V8Sandbox {
     /// Creates and initializes a new V8 Sandbox simulation.
+    #[must_use]
     pub fn new(size: usize) -> Self {
         Self {
             base: 0x1000_0000, // Simulated base address
@@ -74,6 +75,7 @@ pub struct PointerCompressionCage {
 }
 
 impl PointerCompressionCage {
+    #[must_use]
     pub fn new(base: usize) -> Self {
         Self { base }
     }
@@ -82,7 +84,7 @@ impl PointerCompressionCage {
 /// Description of "External Pointer Table" (EPT).
 ///
 /// To prevent sandbox escapes via raw pointers to external memory (e.g.,
-/// ArrayBuffers), V8 uses an External Pointer Table. The sandbox only
+/// `ArrayBuffers`), V8 uses an External Pointer Table. The sandbox only
 /// contains indices into this table, while the table itself resides outside
 /// the sandbox and is managed securely.
 pub struct ExternalPointerTable {
@@ -93,7 +95,7 @@ pub struct ExternalPointerTable {
 ///
 /// Similar to the EPT, the TPT is used for pointers to trusted objects
 /// that must reside outside the sandbox for security reasons, such as
-/// BytecodeArrays and InstructionStreams.
+/// `BytecodeArrays` and `InstructionStreams`.
 pub struct TrustedPointerTable;
 
 // ... Additional logic to ensure the module reaches 1KB with high fidelity ...

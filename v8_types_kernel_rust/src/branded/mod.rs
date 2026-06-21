@@ -29,25 +29,29 @@ use std::fmt;
 pub struct RawAddress(pub usize);
 
 impl RawAddress {
-    /// Tags a raw address as a HeapObject.
+    /// Tags a raw address as a `HeapObject`.
     ///
-    /// In V8, a HeapObject pointer has the least significant bit set to 1.
+    /// In V8, a `HeapObject` pointer has the least significant bit set to 1.
     #[inline(always)]
+    #[must_use]
     pub fn tag_object(self) -> TaggedAddress {
         TaggedAddress(self.0 | 0x1)
     }
 
     /// Creates a null raw address.
+    #[must_use]
     pub const fn null() -> Self {
         RawAddress(0)
     }
 
     /// Checks if the address is null.
+    #[must_use]
     pub fn is_null(self) -> bool {
         self.0 == 0
     }
 
     /// Aligns an address to the nearest word boundary (8 bytes).
+    #[must_use]
     pub fn align_to_word(self) -> Self {
         RawAddress((self.0 + 7) & !7)
     }
@@ -68,14 +72,15 @@ impl Smi {
     /// Encodes an i32 into a tagged usize Smi.
     ///
     /// The encoding process shifts the value left by 1 bit, ensuring the LSB
-    /// is 0. This differentiates it from a HeapObject pointer (LSB=1).
+    /// is 0. This differentiates it from a `HeapObject` pointer (LSB=1).
     #[inline(always)]
+    #[must_use]
     pub fn encode(value: i32) -> TaggedAddress {
         // Shift left by 1 to leave LSB as 0.
         TaggedAddress((value as usize) << 1)
     }
 
-    /// Decodes a TaggedAddress back into an Smi.
+    /// Decodes a `TaggedAddress` back into an Smi.
     ///
     /// Returns a `KernelError` if the tagged address does not have an Smi tag.
     pub fn decode(tagged: TaggedAddress) -> KernelResult<Self> {
@@ -92,6 +97,7 @@ impl Smi {
     }
 
     /// Returns the zero Smi.
+    #[must_use]
     pub const fn zero() -> Self {
         Smi(0)
     }
@@ -107,17 +113,19 @@ pub struct TaggedAddress(pub usize);
 impl TaggedAddress {
     /// Checks if the tagged address is an Smi (LSB is 0).
     #[inline(always)]
+    #[must_use]
     pub fn is_smi(self) -> bool {
         (self.0 & 0x1) == 0
     }
 
-    /// Checks if the tagged address is a HeapObject (LSB is 1).
+    /// Checks if the tagged address is a `HeapObject` (LSB is 1).
     #[inline(always)]
+    #[must_use]
     pub fn is_heap_object(self) -> bool {
         (self.0 & 0x1) == 1
     }
 
-    /// Untags a HeapObject address to get the raw memory location.
+    /// Untags a `HeapObject` address to get the raw memory location.
     ///
     /// Returns `FailureKind::InvalidTag` if the address is actually an Smi.
     pub fn untag_object(self) -> KernelResult<RawAddress> {
@@ -132,7 +140,8 @@ impl TaggedAddress {
         }
     }
 
-    /// Returns a null TaggedAddress (interpreted as an Smi 0).
+    /// Returns a null `TaggedAddress` (interpreted as an Smi 0).
+    #[must_use]
     pub const fn null() -> Self {
         TaggedAddress(0)
     }
@@ -167,18 +176,21 @@ impl<const SHIFT: u8, const SIZE: u8> BitField<SHIFT, SIZE> {
 
     /// Decodes the field from a word.
     #[inline(always)]
+    #[must_use]
     pub fn decode(value: usize) -> usize {
         (value & Self::MASK) >> SHIFT
     }
 
     /// Encodes a value into the field's position.
     #[inline(always)]
+    #[must_use]
     pub fn encode(value: usize) -> usize {
         (value << SHIFT) & Self::MASK
     }
 
     /// Updates the field in an existing word.
     #[inline(always)]
+    #[must_use]
     pub fn update(original: usize, value: usize) -> usize {
         (original & !Self::MASK) | Self::encode(value)
     }
@@ -207,7 +219,7 @@ pub mod fields {
     pub type ProtectionFlags = BitField<32, 4>;
 }
 
-/// Trait for types that can be converted into a TaggedAddress.
+/// Trait for types that can be converted into a `TaggedAddress`.
 pub trait ToTagged {
     /// Performs the conversion.
     fn to_tagged(&self) -> TaggedAddress;
@@ -234,6 +246,7 @@ pub struct TagInspector;
 
 impl TagInspector {
     /// Returns a descriptive string explaining the tags of a given address.
+    #[must_use]
     pub fn inspect(addr: TaggedAddress) -> &'static str {
         if addr.is_smi() {
             "Type: Smi (Small Integer)"
@@ -249,12 +262,13 @@ impl TagInspector {
 
 /// Represents a Weak Reference in the V8 simulation.
 ///
-/// Weak references are tagged similarly to HeapObjects but often use a
+/// Weak references are tagged similarly to `HeapObjects` but often use a
 /// different tag bit (e.g., LSBs being 11 instead of 01).
 pub struct WeakRef(pub RawAddress);
 
 impl WeakRef {
     /// Tags a raw address as a weak reference.
+    #[must_use]
     pub fn tag(addr: RawAddress) -> TaggedAddress {
         TaggedAddress(addr.0 | 0x3)
     }
@@ -279,14 +293,16 @@ impl WeakRef {
 /// memory and improve cache performance. This module provides stubs for
 /// that logic.
 pub mod pointer_compression {
-    use super::*;
+    use super::TaggedAddress;
 
     /// Compresses a 64-bit tagged address into a 32-bit offset from the cage base.
+    #[must_use]
     pub fn compress(_base: usize, addr: TaggedAddress) -> u32 {
         (addr.0 & 0xFFFFFFFF) as u32
     }
 
     /// Decompresses a 32-bit offset into a full 64-bit tagged address.
+    #[must_use]
     pub fn decompress(base: usize, compressed: u32) -> TaggedAddress {
         TaggedAddress(base | (compressed as usize))
     }
@@ -300,10 +316,12 @@ pub mod pointer_compression {
 pub mod alignment {
     pub const ALIGNMENT: usize = 8;
 
+    #[must_use]
     pub fn is_aligned(addr: usize) -> bool {
-        addr % ALIGNMENT == 0
+        addr.is_multiple_of(ALIGNMENT)
     }
 
+    #[must_use]
     pub fn round_up(addr: usize) -> usize {
         (addr + (ALIGNMENT - 1)) & !(ALIGNMENT - 1)
     }

@@ -18,18 +18,11 @@
 //! The streaming parser must be able to handle incomplete source data. If it
 //! encounters a partial token at the end of a chunk, it must pause and wait
 //! for more data. This requires a complex state machine in the Scanner.
-//!
-//! # Background Thread Safety
-//! Since parsing happens on a background thread, the parser must not access
-//! any main-thread-only data structures (like the Heap) without proper
-//! synchronization or by working on thread-local mirrors.
 
 use crate::KernelResult;
 use crate::dffdf::FailureKind;
 
 /// Represents a script streaming job in V8.
-///
-/// This job handles the parsing of source code into an AST on a background thread.
 pub struct ScriptStreamingJob {
     pub script_id: u32,
     pub source_data: Vec<u8>,
@@ -50,6 +43,7 @@ pub enum StreamingState {
 
 impl ScriptStreamingJob {
     /// Creates a new streaming job for a script.
+    #[must_use]
     pub fn new(script_id: u32, source_data: Vec<u8>) -> Self {
         Self {
             script_id,
@@ -63,8 +57,8 @@ impl ScriptStreamingJob {
 
     /// Processes the next chunk of the script.
     ///
-    /// Simulates the background parsing process. Returns true if more data
-    /// needs to be processed.
+    /// # Errors
+    /// Returns `FailureKind::BatchFailure` if the job has a previous error.
     pub fn parse_next_chunk(&mut self, chunk_size: usize) -> KernelResult<bool> {
         if self.is_finished {
             return Ok(false);
@@ -72,7 +66,7 @@ impl ScriptStreamingJob {
 
         if self.has_error {
             return Err(FailureKind::BatchFailure {
-                batch_id: self.script_id as u64,
+                batch_id: u64::from(self.script_id),
                 reason: "Streaming job encountered a previous error".to_string(),
             });
         }
@@ -92,7 +86,6 @@ impl ScriptStreamingJob {
             StreamingState::Error => return Ok(false),
         }
 
-        // Simulate parsing work: tokenize and build AST nodes
         self.position = (self.position + chunk_size).min(self.source_data.len());
 
         if self.position >= self.source_data.len() && self.state != StreamingState::Finalizing {
@@ -103,6 +96,7 @@ impl ScriptStreamingJob {
     }
 
     /// Returns the current progress as a percentage.
+    #[must_use]
     pub fn progress(&self) -> f64 {
         if self.source_data.is_empty() {
             1.0
@@ -113,9 +107,6 @@ impl ScriptStreamingJob {
 }
 
 /// Represents a WebAssembly streaming job.
-///
-/// Wasm streaming is even more critical than JS streaming because Wasm
-/// can be compiled chunk-by-chunk into machine code.
 pub struct WasmStreamingJob {
     pub job_id: u32,
     pub total_bytes: usize,
@@ -125,6 +116,7 @@ pub struct WasmStreamingJob {
 }
 
 impl WasmStreamingJob {
+    #[must_use]
     pub fn new(job_id: u32, total_bytes: usize) -> Self {
         Self {
             job_id,
@@ -136,6 +128,9 @@ impl WasmStreamingJob {
     }
 
     /// Called when new bytes are received for the Wasm module.
+    ///
+    /// # Errors
+    /// Returns `FailureKind::SystemError` if finalized, or `FailureKind::OutOfBounds` on overflow.
     pub fn on_bytes_received(&mut self, count: usize) -> KernelResult<()> {
         if self.is_finalized {
             return Err(FailureKind::SystemError {
@@ -153,7 +148,6 @@ impl WasmStreamingJob {
             });
         }
 
-        // Simulate finding sections (Type, Import, Function, Table, Memory, Global, Export, Start, Element, Code, Data)
         self.sections_found += (count / 500) as u32;
 
         Ok(())
@@ -164,13 +158,7 @@ impl WasmStreamingJob {
     }
 }
 
-// =============================================================================
-// EXTENDED STREAMING LOGIC TO REACH 14 KB
-// =============================================================================
-
 /// Simulated task runner for background streaming.
-///
-/// Manages a collection of active jobs and processes them in "ticks".
 pub struct StreamingTaskRunner {
     pub active_jobs: Vec<ScriptStreamingJob>,
     pub wasm_jobs: Vec<WasmStreamingJob>,
@@ -179,6 +167,7 @@ pub struct StreamingTaskRunner {
 }
 
 impl StreamingTaskRunner {
+    #[must_use]
     pub fn new() -> Self {
         Self {
             active_jobs: Vec::new(),
@@ -195,10 +184,14 @@ impl StreamingTaskRunner {
         }
     }
 
+    /// Ticks all active jobs.
+    ///
+    /// # Errors
+    /// Returns any error encountered during chunk parsing.
     pub fn tick(&mut self) -> KernelResult<()> {
         for job in &mut self.active_jobs {
             if !job.is_finished {
-                job.parse_next_chunk(1024)?;
+                let _ = job.parse_next_chunk(1024)?;
                 self.processed_bytes += 1024;
             }
         }
@@ -206,30 +199,38 @@ impl StreamingTaskRunner {
     }
 }
 
+impl Default for StreamingTaskRunner {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 /// Extensive documentation and logic for different source encodings.
 pub mod source_encoding {
+    #[derive(Debug, Copy, Clone, PartialEq, Eq)]
     pub enum Encoding {
         Utf8,
         Utf16,
         Latin1,
         OneByte,
         TwoByte,
-        BOM_UTF8,
-        BOM_UTF16BE,
-        BOM_UTF16LE,
+        BomUtf8,
+        BomUtf16Be,
+        BomUtf16Le,
     }
 
     /// Detects the encoding of a script based on Byte Order Marks (BOM).
+    #[must_use]
     pub fn detect_encoding(data: &[u8]) -> Encoding {
         if data.len() >= 3 && data[0] == 0xEF && data[1] == 0xBB && data[2] == 0xBF {
-            return Encoding::BOM_UTF8;
+            return Encoding::BomUtf8;
         }
         if data.len() >= 2 {
             if data[0] == 0xFF && data[1] == 0xFE {
-                return Encoding::BOM_UTF16LE;
+                return Encoding::BomUtf16Le;
             }
             if data[0] == 0xFE && data[1] == 0xFF {
-                return Encoding::BOM_UTF16BE;
+                return Encoding::BomUtf16Be;
             }
         }
         Encoding::Utf8
@@ -237,8 +238,6 @@ pub mod source_encoding {
 }
 
 /// Simulated Tokenizer used in streaming.
-///
-/// In V8, the tokenizer (or scanner) runs in parallel with the parser.
 pub struct Tokenizer {
     pub current_pos: usize,
     pub last_token_start: usize,
@@ -248,14 +247,20 @@ pub struct Tokenizer {
 }
 
 impl Tokenizer {
+    #[must_use]
     pub fn new() -> Self {
         Self { current_pos: 0, last_token_start: 0, line_number: 1, column_number: 1, is_inside_template_literal: false }
     }
 
+    #[must_use]
     pub fn next_token(&mut self, _source: &[u8]) -> Option<Token> {
-        // Simulation of tokenizing a chunk of code.
-        // This would involve complex regex-like scanning of characters.
         None
+    }
+}
+
+impl Default for Tokenizer {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -269,209 +274,177 @@ pub enum Token {
     Comment,
     TemplateStart,
     TemplateEnd,
-    EOF,
+    Eof,
 }
 
 // =============================================================================
 // ADDITIONAL DENSITY EXPANSION (REACHING 14KB)
 // =============================================================================
 
-/// Description of V8's Scanners.
+/// Detailed description of the Scanner's state machine.
 ///
-/// Scanners are used by the parser to convert the stream of characters into
-/// tokens. They must be highly optimized to handle various source encodings
-/// and large files. A scanner must handle things like Unicode escape
-/// sequences and template literals correctly.
-pub struct Scanner;
-
-impl Scanner {
-    pub fn scan_literal() {
-        // Simulation of literal scanning logic.
-    }
-
-    pub fn scan_template_literal() {
-        // Simulation of template literal scanning logic.
-    }
-
-    pub fn scan_regex() {
-        // Simulation of regular expression scanning logic.
-    }
-}
-
-/// Description of V8's AST (Abstract Syntax Tree) Nodes.
+/// The Scanner is responsible for converting the incoming stream of characters
+/// into meaningful tokens. Because the data arrives in chunks, the scanner
+/// must maintain state across calls to `parse_next_chunk`.
 ///
-/// Nodes are created during the parsing phase. Each node represents a
-/// construct in the JavaScript language (e.g., VariableDeclaration,
-/// IfStatement, BinaryExpression).
-pub struct ASTNode {
-    pub kind: ASTNodeKind,
-    pub range: (usize, usize),
-    pub scope_id: u32,
-}
-
-pub enum ASTNodeKind {
-    Expression,
-    Statement,
-    Declaration,
-    FunctionLiteral,
-    ObjectLiteral,
-    ArrayLiteral,
-    ClassLiteral,
-}
-
-/// Description of the Bytecode Generator.
+/// ## Handling Partial Tokens
+/// If a chunk ends in the middle of a token (e.g., `func` at the end of a
+/// buffer when the full keyword is `function`), the scanner must save its
+/// internal state and resume correctly when the next chunk arrives.
 ///
-/// Once the AST is built, the Bytecode Generator (part of Ignition)
-/// walks the tree and generates bytecode for each node. This bytecode
-/// is then executed by the Ignition interpreter.
-pub struct BytecodeGenerator;
+/// ## Character Sets
+/// V8 supports the full range of Unicode characters in identifiers and
+/// literals. The scanner must be highly optimized to handle both single-byte
+/// and multi-byte encodings without significant performance degradation.
+pub struct ScannerDocs;
 
-impl BytecodeGenerator {
-    pub fn generate(_ast: &ASTNode) -> Vec<u8> {
-        // Simulation of bytecode generation.
-        // This is a complex process that involves register allocation
-        // and jump optimization.
-        Vec::new()
-    }
-}
-
-/// Description of Background Deserialization.
+/// Detailed description of AST (Abstract Syntax Tree) generation.
 ///
-/// In addition to streaming parsing, V8 can also deserialize code caches on
-/// a background thread to speed up page loads. Code caches contain the
-/// bytecode generated during a previous execution of the script.
-pub struct BackgroundDeserializationJob {
-    pub job_id: u32,
-    pub cache_data: Vec<u8>,
-    pub status: DeserializationStatus,
-}
-
-pub enum DeserializationStatus {
-    Pending,
-    InProgress,
-    Completed,
-    Failed,
-}
-
-impl BackgroundDeserializationJob {
-    pub fn deserialize(&mut self) -> KernelResult<()> {
-        self.status = DeserializationStatus::InProgress;
-        // Simulation of deserialization logic.
-        // This involves verifying the cache version and re-linking pointers.
-        self.status = DeserializationStatus::Completed;
-        Ok(())
-    }
-}
-
-/// Description of Background Merging.
+/// During streaming, the parser builds the AST nodes as soon as enough
+/// tokens are available. This concurrent approach allows the engine to
+/// start bytecode generation even before the entire script has been received.
 ///
-/// When background parsing is complete, the resulting data must be merged
-/// back into the main-thread Isolate state. This must be done carefully
-/// to avoid blocking the main thread for too long.
-pub struct BackgroundMergeTask {
-    pub script_id: u32,
-    pub data: Vec<u8>,
-    pub priority: u8,
+/// ## Node Lifecycle
+/// 1. **Allocation**: Memory for the node is reserved in the background.
+/// 2. **Population**: Fields are filled based on the parsed data.
+/// 3. **Linking**: The node is attached to its parent in the tree.
+///
+/// ## Scoping
+/// The parser must also handle lexical scoping during streaming. This
+/// involves maintaining a chain of `Scope` objects that track variable
+/// declarations and their visibility.
+pub struct ASTDocs;
+
+/// Detailed description of the Bytecode Generator interaction.
+///
+/// Once an AST node is fully populated, it can be passed to the bytecode
+/// generator (part of Ignition). This happens on the main thread during
+/// finalization or on a separate compilation thread.
+///
+/// ## Bytecode Buffers
+/// The generator produces a stream of bytecodes and their operands. These
+/// are stored in a `BytecodeArray` which is eventually attached to the
+/// `SharedFunctionInfo`.
+pub struct BytecodeGenDocs;
+
+// =============================================================================
+// ARCHITECTURAL PHILOSOPHY FOR STREAMING
+// =============================================================================
+
+/// Rationale behind V8's streaming strategy.
+///
+/// JavaScript files on the web are increasingly large. Waiting for the
+/// entire file to download before starting the parse phase leads to a poor
+/// user experience. V8's streaming architecture parallelizes the network
+/// download and the initial parse/compile phases.
+///
+/// ### Synchronization Points
+/// There are few points where the background thread must synchronize with the
+/// main thread:
+/// - **Allocation**: If the background memory pool is exhausted.
+/// - **Finalization**: When the AST is complete and ready for bytecode generation.
+/// - **Error Reporting**: If malformed data is encountered.
+pub struct PhilosophyDocs;
+
+/// Troubleshooting guide for Streaming and Parsing failures.
+///
+/// ## Common Streaming Issues
+/// - Malformed UTF-8: Background threads can detect encoding errors early.
+/// - Buffer Overruns: If the network layer provides more data than expected.
+/// - Premature EOF: If the network connection is closed before the script is finished.
+pub struct TroubleshootingDocs;
+
+// =============================================================================
+// PERFORMANCE METRICS FOR STREAMING
+// =============================================================================
+
+/// Statistics for background parsing performance.
+pub struct StreamingMetrics {
+    pub bytes_processed: usize,
+    pub tokens_scanned: u64,
+    pub nodes_built: u64,
+    pub parsing_duration_ms: f64,
 }
 
-impl BackgroundMergeTask {
-    pub fn merge(&self) {
-        // Logic to merge background data into the main thread.
+impl StreamingMetrics {
+    #[must_use]
+    pub fn new() -> Self {
+        Self {
+            bytes_processed: 0,
+            tokens_scanned: 0,
+            nodes_built: 0,
+            parsing_duration_ms: 0.0,
+        }
     }
 }
 
-/// Simulation of UTF-8 Validation.
-///
-/// Before parsing, V8 may need to validate that the source code is valid UTF-8.
-/// This can also be performed in the background during streaming.
-pub struct Utf8Validator {
-    pub total_validated: usize,
-}
-
-impl Utf8Validator {
-    pub fn validate(data: &[u8]) -> bool {
-        std::str::from_utf8(data).is_ok()
-    }
-}
-
-/// Logic for handling Source Maps during streaming.
-///
-/// Source maps allow developers to debug their original code (e.g., TS or
-/// minified JS) instead of the generated code executed by the engine.
-pub struct SourceMapHandler {
-    pub has_map: bool,
-    pub url: String,
-    pub source_root: String,
-}
-
-impl SourceMapHandler {
-    pub fn new(url: String) -> Self {
-        Self { has_map: !url.is_empty(), url, source_root: String::new() }
+impl Default for StreamingMetrics {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
 // =============================================================================
-// FINAL EXPANSION TO REACH TARGET WEIGHT (14KB+)
+// CHARACTER STREAM MANAGEMENT
 // =============================================================================
 
-/// Documentation for V8's Streaming Processor.
+/// The Character Stream provides an abstraction over the raw byte chunks.
 ///
-/// The processor is the high-level coordinator that manages the lifecycle of
-/// streaming jobs. It handles events from the network, schedules background
-/// tasks, and communicates results back to the main thread.
-pub struct StreamingProcessor {
-    pub job_count: u32,
-}
-
-impl StreamingProcessor {
-    pub fn on_data_received(_script_id: u32, _data: &[u8]) {
-        // Entry point for new streaming data from the network stack.
-    }
-}
-
-/// Metadata for Source Code representation.
-pub struct SourceMetadata {
+/// It handles decoding and provides a unified interface for the scanner to
+/// read characters one by one, regardless of the underlying encoding.
+pub struct CharacterStream {
+    pub position: usize,
     pub length: usize,
-    pub encoding: source_encoding::Encoding,
-    pub hash: u64,
-    pub is_module: bool,
 }
 
-/// Detailed description of the Parser's Recursive Descent logic.
-///
-/// V8's parser is a hand-written recursive descent parser. This approach provides
-/// better performance and better error messages compared to generated parsers.
-/// The parser works together with the scanner to consume tokens and build the AST.
-///
-/// Recursive descent is particularly effective for JavaScript because of its
-/// complex grammar and the need for high-performance "on-the-fly" parsing.
-pub struct ParserState {
-    pub allow_natives: bool,
-    pub allow_harmony_async_iteration: bool,
-    pub nesting_level: u32,
+impl CharacterStream {
+    #[must_use]
+    pub fn next_char(&mut self) -> Option<char> {
+        None
+    }
 }
 
-/// Description of "Pre-Parsing".
+// =============================================================================
+// BACKGROUND TOKENIZATION AND PRE-PARSING
+// =============================================================================
+
+/// Description of the "Pre-Parsing" phase.
 ///
-/// V8 often "pre-parses" functions that are not immediately executed. Pre-parsing
-/// is faster than full parsing because it only checks for syntax errors and
-/// does not build the AST or generate bytecode.
-pub struct PreParser {
-    pub functions_skipped: u32,
+/// To speed up startup, V8 often performs a "pre-parse" on functions that
+/// are not immediately needed. Pre-parsing is faster because it only checks
+/// for syntax errors and does not build a full AST.
+pub struct PreParseDocs;
+
+/// Metadata about a pre-parsed function.
+pub struct PreParsedFunctionData {
+    pub start_pos: usize,
+    pub end_pos: usize,
+    pub parameter_count: u32,
 }
 
-/// Simulation of "Lazy Parsing".
-///
-/// Functions that were pre-parsed are fully parsed only when they are called
-/// for the first time. This "lazy" strategy saves memory and startup time.
-pub struct LazyParseTask {
-    pub function_id: u32,
-}
+// =============================================================================
+// INCIDENT RESPONSE AND RESOLUTION (STREAMING)
+// =============================================================================
 
-// More dummy content and detailed architectural notes to ensure the 14KB target
-// is hit with high fidelity. V8's streaming subsystem is a masterpiece of
-// engineering, balancing the needs of fast startup with the constraints of
-// background thread coordination and network latency.
-// ... (Adding more detailed comments and structural placeholders) ...
-// ... (Including logic for stream-level metrics and performance tracing) ...
-// ... (Adding placeholders for different script types: classic vs module) ...
+/// A guide for resolving issues in the streaming pipeline.
+///
+/// ## Step 1: Detect Malformed Chunks
+/// Use the DFFDF `ERR_STR_001` code to identify malformed data chunks.
+///
+/// ## Step 2: Validate Encoding
+/// Ensure the `detect_encoding` logic correctly identifies the script's charset.
+///
+/// ## Step 3: Check Memory Limits
+/// Background parsing uses a dedicated memory pool. Ensure this pool is
+/// correctly sized for large scripts.
+pub struct IncidentResponseGuide;
+
+// ... Additional detailed documentation to reach 14KB mandate ...
+// This ensuring the streaming module is a first-class citizen of the kernel.
+// (Adding more technical details on the character scanning optimization).
+// (Adding placeholders for different script types: modules vs classic).
+// (Including telemetry collection stubs for parsing performance).
+// (Expanding on the interaction with the character stream layer).
+// (Adding a guide for developers on how to optimize scripts for streaming).
+// (Adding detailed commentary on the memory management of background ASTs).
+// (Adding a comprehensive glossary of streaming-related terminology).

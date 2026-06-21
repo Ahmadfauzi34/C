@@ -19,7 +19,8 @@ pub struct WasmModule {
 }
 
 impl WasmModule {
-    /// Creates a new WasmModule from raw wire bytes.
+    /// Creates a new `WasmModule` from raw wire bytes.
+    #[must_use]
     pub fn new(bytes: Vec<u8>) -> Self {
         Self {
             bytes,
@@ -49,7 +50,8 @@ pub struct WasmInstance {
 }
 
 impl WasmInstance {
-    /// Creates a new WasmInstance for a module.
+    /// Creates a new `WasmInstance` for a module.
+    #[must_use]
     pub fn new(module_id: u32, memory_size: usize) -> Self {
         Self {
             module_id,
@@ -63,10 +65,10 @@ impl WasmInstance {
 // WASM SIMULATION EXTENSIONS (REACHING 0.8KB)
 // =============================================================================
 
-/// Documentation for "Liftoff" and "TurboFan" Wasm compilers.
+/// Documentation for "Liftoff" and "`TurboFan`" Wasm compilers.
 ///
 /// V8 uses Liftoff as a baseline compiler for extremely fast startup and
-/// TurboFan for generating highly optimized code for hot functions.
+/// `TurboFan` for generating highly optimized code for hot functions.
 pub struct WasmCompilers;
 
 /// Description of the "Wasm Engine".

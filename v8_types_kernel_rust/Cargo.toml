@@ -12,5 +12,9 @@ description = "A framework-agnostic, low-level V8 Engine Simulation and Computin
 name = "generate_ts"
 path = "scripts/generate_ts.rs"
 
+[[bench]]
+name = "amb_benchmark"
+harness = false
+
 [lib]
 path = "src/lib.rs"

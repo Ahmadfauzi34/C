@@ -52,7 +52,14 @@ pub struct SeaOfNodes {
     pub edges: Vec<GraphEdge>,
 }
 
+impl Default for SeaOfNodes {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl SeaOfNodes {
+    #[must_use]
     pub fn new() -> Self {
         Self { nodes: Vec::new(), edges: Vec::new() }
     }
