@@ -1,0 +1,20 @@
+[package]
+name = "v8_types_kernel_rust"
+version = "0.1.0"
+edition = "2021"
+authors = ["Jules <jules@example.com>"]
+description = "A framework-agnostic, low-level V8 Engine Simulation and Computing Platform in Rust"
+
+[dependencies]
+# Absolutely zero external dependencies as per architectural mandate.
+
+[[bin]]
+name = "generate_ts"
+path = "scripts/generate_ts.rs"
+
+[[bench]]
+name = "amb_benchmark"
+harness = false
+
+[lib]
+path = "src/lib.rs"
