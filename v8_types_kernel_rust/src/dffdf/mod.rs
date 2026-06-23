@@ -83,6 +83,28 @@ pub enum FailureKind {
     GCError {
         reason: &'static str,
     },
+    /// MMU Sheaf Gluing Contradiction.
+    SheafGluingContradiction {
+        virtual_addr: u64,
+        expected: u64,
+        found: u64,
+        level: u32,
+    },
+    /// Invalid object delegation/prototype chain.
+    InvalidDelegation {
+        from: String,
+        to: String,
+    },
+    /// Contradiction in modal logic/speculative state.
+    ModalContradiction {
+        proposition: String,
+        stage: usize,
+    },
+    /// Stuck loop detected in execution homotopy.
+    HomotopyStuckLoop {
+        pattern: String,
+        trace_length: usize,
+    },
 }
 
 impl FailureKind {
@@ -100,6 +122,10 @@ impl FailureKind {
             Self::SystemError { .. } => "ERR_SYS_002",
             Self::WasmValidationError { .. } => "ERR_WSM_001",
             Self::GCError { .. } => "ERR_GC_001",
+            Self::SheafGluingContradiction { .. } => "ERR_TOP_001",
+            Self::InvalidDelegation { .. } => "ERR_TOP_002",
+            Self::ModalContradiction { .. } => "ERR_TOP_003",
+            Self::HomotopyStuckLoop { .. } => "ERR_TOP_004",
         }
     }
 
@@ -117,6 +143,10 @@ impl FailureKind {
             Self::SystemError { .. } => "A general system error occurred. Please refer to the system logs for more information.",
             Self::WasmValidationError { .. } => "The WebAssembly module contains illegal instructions or invalid structure.",
             Self::GCError { .. } => "Garbage collection failed to complete properly. This may indicate severe heap corruption.",
+            Self::SheafGluingContradiction { .. } => "A contradiction was found during MMU sheaf gluing. Different page table levels disagree on the physical mapping.",
+            Self::InvalidDelegation { .. } => "The requested object delegation or prototype chain access is invalid or cyclic.",
+            Self::ModalContradiction { .. } => "A contradiction occurred in the speculative modal logic evaluation. The state is inconsistent.",
+            Self::HomotopyStuckLoop { .. } => "An infinite execution loop was detected using homotopy trace analysis.",
         }
     }
 }
@@ -174,6 +204,26 @@ impl fmt::Display for FailureKind {
             Self::GCError { reason } => {
                 writeln!(f, "│ CAUSE:    Garbage collection failure.                                        │")?;
                 writeln!(f, "│ REASON:   {reason:<66} │")?;
+            }
+            Self::SheafGluingContradiction { virtual_addr, expected, found, level } => {
+                writeln!(f, "│ CAUSE:    MMU Sheaf Gluing Contradiction.                                    │")?;
+                writeln!(f, "│ ADDR:     VA: 0x{virtual_addr:016X}, Level: {level}                                    │")?;
+                writeln!(f, "│ MAPPING:  Expected PA: 0x{expected:016X}, Found PA: 0x{found:016X}          │")?;
+            }
+            Self::InvalidDelegation { from, to } => {
+                writeln!(f, "│ CAUSE:    Invalid object delegation or prototype chain.                      │")?;
+                writeln!(f, "│ FROM:     {from:<66} │")?;
+                writeln!(f, "│ TO:       {to:<66} │")?;
+            }
+            Self::ModalContradiction { proposition, stage } => {
+                writeln!(f, "│ CAUSE:    Speculative modal logic contradiction.                             │")?;
+                writeln!(f, "│ PROP:     {proposition:<66} │")?;
+                writeln!(f, "│ STAGE:    {stage:<66} │")?;
+            }
+            Self::HomotopyStuckLoop { pattern, trace_length } => {
+                writeln!(f, "│ CAUSE:    Infinite loop detected via homotopy analysis.                       │")?;
+                writeln!(f, "│ PATTERN:  {pattern:<66} │")?;
+                writeln!(f, "│ TRACE:    Length: {trace_length:<58} │")?;
             }
         }
 
