@@ -36,37 +36,25 @@ fn generate_all_sections(output: &mut String) -> std::io::Result<()> {
     // Section 1: Branded Types
     generate_branded_types(output);
 
-    // Section 2-3: Heap & Memory
+    // Section 2-3: Heap & Memory (MMU Simulation)
     generate_heap_types(output)?;
 
     // Section 4-15: JS Objects
     generate_object_types(output)?;
 
-    // Section 43-44: Compiler Pipeline
+    // Section 43-44: Compiler Pipeline (Speculative JIT)
     generate_compiler_types(output)?;
 
     // Section 45: Sandbox
     generate_sandbox_types(output)?;
 
-    // Section 46: WASM
-    generate_wasm_types(output)?;
-
-    // Section 47: Orinoco GC
-    generate_gc_types(output)?;
-
     // Section 51: DFFDF
     generate_dffdf_types(output)?;
 
-    // Section 52: Streaming
-    generate_streaming_types(output)?;
-
-    // Section 53: AMB
+    // Section 53: Kernel Scheduler (AMB)
     generate_amb_types(output)?;
 
-    // Section 25-28: Graph
-    generate_graph_types(output)?;
-
-    // Section 29-33: Advanced
+    // Section 29-33: Advanced Speculative Research
     generate_advanced_types(output)?;
 
     Ok(())
@@ -80,7 +68,7 @@ fn generate_branded_types(output: &mut String) {
 }
 
 fn generate_heap_types(output: &mut String) -> std::io::Result<()> {
-    output.push_str("/** Section 2-3: Heap & Memory */\n");
+    output.push_str("/** Section 2-3: Heap & Memory MMU */\n");
     scan_and_export_enum(output, "src/heap/mod.rs", "InstanceType")?;
     scan_and_export_struct(output, "src/heap/mod.rs", "HeapStats")?;
     Ok(())
@@ -105,22 +93,8 @@ fn generate_sandbox_types(output: &mut String) -> std::io::Result<()> {
     Ok(())
 }
 
-fn generate_wasm_types(output: &mut String) -> std::io::Result<()> {
-    output.push_str("/** Section 46: WASM */\n");
-    scan_and_export_struct(output, "src/wasm/mod.rs", "WasmInstance")?;
-    Ok(())
-}
-
-fn generate_gc_types(output: &mut String) -> std::io::Result<()> {
-    output.push_str("/** Section 47: Orinoco GC */\n");
-    scan_and_export_enum(output, "src/gc/mod.rs", "GCReason")?;
-    scan_and_export_struct(output, "src/gc/mod.rs", "GCResult")?;
-    Ok(())
-}
-
 fn generate_dffdf_types(output: &mut String) -> std::io::Result<()> {
     output.push_str("/** Section 51: DFFDF */\n");
-    // Diagnostic system uses ReadonlyArray and typed FailureContext
     output.push_str("export interface FailureContext {\n");
     output.push_str("  readonly kind: string;\n");
     output.push_str("  readonly severity: string;\n");
@@ -131,26 +105,15 @@ fn generate_dffdf_types(output: &mut String) -> std::io::Result<()> {
     Ok(())
 }
 
-fn generate_streaming_types(output: &mut String) -> std::io::Result<()> {
-    output.push_str("/** Section 52: Streaming */\n");
-    scan_and_export_enum(output, "src/streaming/mod.rs", "StreamingState")?;
-    Ok(())
-}
-
 fn generate_amb_types(output: &mut String) -> std::io::Result<()> {
-    output.push_str("/** Section 53: AMB */\n");
-    scan_and_export_struct(output, "src/amb/mod.rs", "JobMetrics")?;
-    Ok(())
-}
-
-fn generate_graph_types(output: &mut String) -> std::io::Result<()> {
-    output.push_str("/** Section 25-28: Graph */\n");
-    scan_and_export_enum(output, "src/graph/mod.rs", "OpCode")?;
+    output.push_str("/** Section 53: Kernel Scheduler */\n");
+    scan_and_export_enum(output, "src/amb/mod.rs", "TaskState")?;
+    scan_and_export_struct(output, "src/amb/mod.rs", "KernelTask")?;
     Ok(())
 }
 
 fn generate_advanced_types(output: &mut String) -> std::io::Result<()> {
-    output.push_str("/** Section 29-33: Advanced */\n");
+    output.push_str("/** Section 29-33: Speculative Research */\n");
     scan_and_export_struct(output, "src/advanced/mod.rs", "TopologicalSpace")?;
     scan_and_export_struct(output, "src/advanced/mod.rs", "QuantumState")?;
     Ok(())
@@ -213,17 +176,15 @@ fn scan_and_export_struct(output: &mut String, path: &str, struct_name: &str) ->
                         let field = parts[0].trim_start_matches("pub ").trim();
                         let rust_type = parts[1].trim_end_matches(',').trim();
 
-                        // Handle diagnostic report failures field mapping
                         if field == "failures" && rust_type == "Vec<FailureKind>" {
                             output.push_str("  readonly failures: ReadonlyArray<FailureContext>;\n");
                             continue;
                         }
 
                         let ts_type = match rust_type {
-                            "usize" | "u32" | "u64" | "i32" | "f64" => "number",
+                            "usize" | "u32" | "u64" | "i32" | "f64" | "u8" | "i8" => "number",
                             "String" | "&'static str" => "string",
                             "bool" | "boolean" => "boolean",
-                            "Vec<u64>" => "ReadonlyArray<number>",
                             _ => "any",
                         };
                         output.push_str(&format!("  readonly {}: {};\n", field, ts_type));
