@@ -57,6 +57,9 @@ fn generate_all_sections(output: &mut String) -> std::io::Result<()> {
     // Section 29-33: Advanced Speculative Research
     generate_advanced_types(output)?;
 
+    // Section 101+: Topos Integration
+    generate_topos_types(output)?;
+
     Ok(())
 }
 
@@ -119,6 +122,19 @@ fn generate_advanced_types(output: &mut String) -> std::io::Result<()> {
     Ok(())
 }
 
+fn generate_topos_types(output: &mut String) -> std::io::Result<()> {
+    output.push_str("/** Section 101+: Topos Integration */\n");
+    scan_and_export_enum(output, "src/topos/mod.rs", "PageTableLevel")?;
+    scan_and_export_enum(output, "src/topos/mod.rs", "KripkeStage")?;
+    scan_and_export_enum(output, "src/topos/mod.rs", "ModalOperator")?;
+    scan_and_export_enum(output, "src/topos/mod.rs", "TruthValue")?;
+    scan_and_export_struct(output, "src/topos/mod.rs", "MemoryShape")?;
+    scan_and_export_struct(output, "src/topos/mod.rs", "HomotopyResult")?;
+    scan_and_export_struct(output, "src/topos/mod.rs", "ErrorFactorization")?;
+    scan_and_export_struct(output, "src/topos/mod.rs", "SystemContext")?;
+    Ok(())
+}
+
 /// A simple scanner that finds an enum definition in a Rust file and exports it to TS.
 fn scan_and_export_enum(output: &mut String, path: &str, enum_name: &str) -> std::io::Result<()> {
     let mut content = String::new();
@@ -139,10 +155,14 @@ fn scan_and_export_enum(output: &mut String, path: &str, enum_name: &str) -> std
                         continue;
                     }
 
-                    let variant = trimmed.split(',').next().unwrap_or("").split('=').next().unwrap_or("").trim();
-                    if !variant.is_empty() {
-                        output.push_str(&format!("  {} = {},\n", variant, value_counter));
-                        value_counter += 1;
+                    let variant_full = trimmed.split(',').next().unwrap_or("").split('=').next().unwrap_or("").trim();
+                    if !variant_full.is_empty() {
+                        // Strip data fields like { ... } or ( ... )
+                        let variant = variant_full.split('{').next().unwrap_or("").split('(').next().unwrap_or("").trim();
+                        if !variant.is_empty() {
+                            output.push_str(&format!("  {} = {},\n", variant, value_counter));
+                            value_counter += 1;
+                        }
                     }
                 }
                 output.push_str("}\n\n");
@@ -182,10 +202,19 @@ fn scan_and_export_struct(output: &mut String, path: &str, struct_name: &str) ->
                         }
 
                         let ts_type = match rust_type {
-                            "usize" | "u32" | "u64" | "i32" | "f64" | "u8" | "i8" => "number",
+                            "usize" | "u32" | "u64" | "i32" | "f64" | "u8" | "i8" | "f32" => "number",
                             "String" | "&'static str" => "string",
                             "bool" | "boolean" => "boolean",
-                            _ => "any",
+                            "BrandedVAddr" | "TaggedAddress" => "TaggedAddress",
+                            "BrandedTaskId" => "number",
+                            "BrandedPAddr" => "number",
+                            "PageRange" => "any",
+                            "[f32; 4]" => "ReadonlyArray<number>",
+                            "Vec<TracePoint>" => "ReadonlyArray<any>",
+                            "Vec<FailureKind>" | "ReadonlyArray<FailureContext>" => "ReadonlyArray<FailureContext>",
+                            "Vec<BrandedTaskId>" => "ReadonlyArray<number>",
+                            "HashMap<String, u64>" => "{ [key: string]: number }",
+                            _ => if rust_type.starts_with("Vec<") { "ReadonlyArray<any>" } else { "any" },
                         };
                         output.push_str(&format!("  readonly {}: {};\n", field, ts_type));
                     }

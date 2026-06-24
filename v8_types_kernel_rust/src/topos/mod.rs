@@ -359,6 +359,7 @@ impl MemoryCohesion {
 
         let edges = self.links.len();
         let nodes = self.nodes.len();
+        #[allow(clippy::cast_possible_wrap)]
         let euler = nodes as i32 - edges as i32 + components as i32;
 
         MemoryShape {
@@ -372,6 +373,16 @@ impl MemoryCohesion {
     #[must_use]
     pub fn flat_modality(&self) -> Vec<BrandedVAddr> {
         self.nodes.iter().map(|n| n.id).collect()
+    }
+
+    /// Differential cohesion: infinitesimal neighbors (cache-line proximity).
+    #[must_use]
+    pub fn infinitesimal_neighbors(&self, addr: BrandedVAddr, epsilon: f64) -> Vec<BrandedVAddr> {
+        self.links
+            .iter()
+            .filter(|link| link.source == addr && link.weight < epsilon)
+            .map(|link| link.target)
+            .collect()
     }
 
     fn dfs_visit(&self, start: BrandedVAddr, visited: &mut std::collections::HashSet<BrandedVAddr>) {
@@ -517,7 +528,8 @@ impl KernelQuasitopos {
     pub fn heal_malformed_access(access: &mut MemoryAccess) -> HealingReport {
         let mut fixes = Vec::new();
 
-        if !access.address.0.is_multiple_of(8) {
+        #[allow(clippy::manual_is_multiple_of)]
+        if access.address.0 % 8 != 0 {
             access.address = BrandedVAddr((access.address.0 + 7) & !7);
             fixes.push("Aligned unaligned memory access".to_string());
         }
@@ -563,6 +575,15 @@ impl KernelQuasitopos {
             None
         }
     }
+
+    /// Exact completion: decompose error into epi (what failed) + mono (what's valid).
+    #[must_use]
+    pub fn exact_complete(error: &FailureKind, context: &SystemContext) -> ErrorFactorization {
+        ErrorFactorization {
+            epi: format!("{error}"), // Surjective: full error description
+            mono: context.valid_state.clone(), // Injective: valid state subset
+        }
+    }
 }
 
 pub struct HealingReport {
@@ -574,6 +595,17 @@ pub struct MemoryAccess {
     pub address: BrandedVAddr,
     pub size: usize,
     pub operation: String,
+}
+
+pub struct ErrorFactorization {
+    pub epi: String,
+    pub mono: HashMap<String, u64>,
+}
+
+pub struct SystemContext {
+    pub valid_state: HashMap<String, u64>,
+    pub current_stage: usize,
+    pub active_tasks: Vec<BrandedTaskId>,
 }
 
 fn levenshtein_distance(a: &str, b: &str) -> usize {
@@ -607,6 +639,13 @@ pub struct ObjectCell {
     pub permissions: Vec<String>,
 }
 
+/// 2-cell: transformation between delegations.
+pub struct DelegationTransform {
+    pub source: String,
+    pub target: String,
+    pub transformation: Box<dyn Fn(&JsValue) -> JsValue>,
+}
+
 pub struct JsValue {
     pub tag: String,
     pub payload: u64,
@@ -614,6 +653,7 @@ pub struct JsValue {
 
 pub struct ObjectTwoTopos {
     hierarchy: HashMap<String, ObjectCell>,
+    pub transforms: Vec<DelegationTransform>,
 }
 
 impl ObjectTwoTopos {
@@ -621,6 +661,7 @@ impl ObjectTwoTopos {
     pub fn new() -> Self {
         Self {
             hierarchy: HashMap::new(),
+            transforms: Vec::new(),
         }
     }
 
@@ -682,7 +723,7 @@ impl ObjectTwoTopos {
         lines.push("  rankdir=TB;".to_string());
         lines.push("  node [shape=box];".to_string());
 
-        for (role, _cell) in &self.hierarchy {
+        for role in self.hierarchy.keys() {
             lines.push(format!("  \"{role}\" [label=\"{role}\"];"));
             if let Some(cell) = self.hierarchy.get(role) {
                 for sub in &cell.sub_objects {
@@ -706,3 +747,6 @@ pub struct LaxComposition {
     pub valid: bool,
     pub path: Vec<String>,
 }
+
+#[cfg(test)]
+mod tests;
