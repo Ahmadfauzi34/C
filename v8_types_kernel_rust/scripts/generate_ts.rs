@@ -132,6 +132,11 @@ fn generate_topos_types(output: &mut String) -> std::io::Result<()> {
     scan_and_export_struct(output, "src/topos/mod.rs", "HomotopyResult")?;
     scan_and_export_struct(output, "src/topos/mod.rs", "ErrorFactorization")?;
     scan_and_export_struct(output, "src/topos/mod.rs", "SystemContext")?;
+
+    output.push_str("/** HoTT Abstractions */\n");
+    scan_and_export_struct(output, "src/topos/mod.rs", "PathP")?;
+    scan_and_export_struct(output, "src/topos/mod.rs", "Homotopy2")?;
+    scan_and_export_struct(output, "src/topos/mod.rs", "KanComplex")?;
     Ok(())
 }
 
@@ -178,7 +183,7 @@ fn scan_and_export_struct(output: &mut String, path: &str, struct_name: &str) ->
     if let Ok(mut file) = File::open(path) {
         file.read_to_string(&mut content)?;
 
-        if let Some(start) = content.find(&format!("pub struct {} {{", struct_name)) {
+        if let Some(start) = content.find(&format!("pub struct {}", struct_name)) {
             let rest = &content[start..];
             if let Some(end) = rest.find('}') {
                 let body = &rest[..end + 1];

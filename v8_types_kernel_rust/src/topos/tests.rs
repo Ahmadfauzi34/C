@@ -41,4 +41,32 @@ mod tests {
         // Now it is "possible" (was true in some stage)
         assert!(topos.evaluate_modal("running", ModalOperator::Possibility));
     }
+
+    #[test]
+    fn univalence_state_identification() {
+        let p = PathP {
+            start: 100,
+            end: 100,
+            mapping: "Identity".to_string(),
+        };
+
+        // HoTT Univalence: if states are equivalent (here same value),
+        // the path proves they are identical.
+        assert!(UnivalenceAxiom::id_to_equiv(&p));
+    }
+
+    #[test]
+    fn compiler_path_homotopy() {
+        use crate::compiler::{HoTTCompilerVerifier, ExecutionTier};
+
+        let optimized = ExecutionTier::Turbofan;
+        let bytecode_path = PathP {
+            start: ExecutionTier::Ignition,
+            end: ExecutionTier::Ignition,
+            mapping: "Identity Bytecode Path".to_string(),
+        };
+
+        // Turbofan projects back to Ignition, so it is equivalent to Ignition path.
+        assert!(HoTTCompilerVerifier::verify_optimization_equivalence(&optimized, &bytecode_path));
+    }
 }

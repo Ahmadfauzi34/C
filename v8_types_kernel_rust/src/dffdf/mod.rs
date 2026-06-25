@@ -105,6 +105,17 @@ pub enum FailureKind {
         pattern: String,
         trace_length: usize,
     },
+    /// Contradiction in HoTT path identity.
+    PathContradiction {
+        start: String,
+        end: String,
+        mapping: String,
+    },
+    /// Violation of the Univalence Axiom.
+    UnivalenceViolation {
+        expected_equiv: bool,
+        actual_id: bool,
+    },
 }
 
 impl FailureKind {
@@ -126,6 +137,8 @@ impl FailureKind {
             Self::InvalidDelegation { .. } => "ERR_TOP_002",
             Self::ModalContradiction { .. } => "ERR_TOP_003",
             Self::HomotopyStuckLoop { .. } => "ERR_TOP_004",
+            Self::PathContradiction { .. } => "ERR_HOT_001",
+            Self::UnivalenceViolation { .. } => "ERR_HOT_002",
         }
     }
 
@@ -147,6 +160,8 @@ impl FailureKind {
             Self::InvalidDelegation { .. } => "The requested object delegation or prototype chain access is invalid or cyclic.",
             Self::ModalContradiction { .. } => "A contradiction occurred in the speculative modal logic evaluation. The state is inconsistent.",
             Self::HomotopyStuckLoop { .. } => "An infinite execution loop was detected using homotopy trace analysis.",
+            Self::PathContradiction { .. } => "A path identity contradiction was found. The start and end states do not match the expected mapping.",
+            Self::UnivalenceViolation { .. } => "The Univalence Axiom was violated. Equivalent states were not found to be identical.",
         }
     }
 }
@@ -224,6 +239,16 @@ impl fmt::Display for FailureKind {
                 writeln!(f, "│ CAUSE:    Infinite loop detected via homotopy analysis.                       │")?;
                 writeln!(f, "│ PATTERN:  {pattern:<66} │")?;
                 writeln!(f, "│ TRACE:    Length: {trace_length:<58} │")?;
+            }
+            Self::PathContradiction { start, end, mapping } => {
+                writeln!(f, "│ CAUSE:    HoTT Path Contradiction detected.                                  │")?;
+                writeln!(f, "│ PATH:     {start} -> {end}                                               │")?;
+                writeln!(f, "│ MAP:      {mapping:<66} │")?;
+            }
+            Self::UnivalenceViolation { expected_equiv, actual_id } => {
+                writeln!(f, "│ CAUSE:    Univalence Axiom Violation.                                        │")?;
+                writeln!(f, "│ EXPECTED: Equivalent={expected_equiv:<55} │")?;
+                writeln!(f, "│ ACTUAL:   Identical={actual_id:<56} │")?;
             }
         }
 
