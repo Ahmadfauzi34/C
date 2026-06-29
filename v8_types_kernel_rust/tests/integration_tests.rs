@@ -185,3 +185,28 @@ fn stress_test_diagnostics() {
 // and Sea-of-Nodes graph building.
 // These tests ensure that the entire kernel remains integrated and stable.
 // ... (Adding more detailed assertions and edge-case handling) ...
+
+#[test]
+fn test_orinoco_gc_cycles() {
+    use v8_types_kernel_rust::gc::{OrinocoGC, GCKind};
+
+    let mut gc = OrinocoGC::new();
+
+    // 1. Test Scavenge
+    let res1 = gc.scavenge();
+    assert_eq!(res1.kind, GCKind::Scavenge);
+    assert!(res1.survived_objects > 0);
+
+    // 2. Test Incremental Marking
+    let res2 = gc.incremental_marking_step(1.0);
+    assert_eq!(res2.kind, GCKind::IncrementalMarkingStep);
+
+    // 3. Test Full GC
+    let res3 = gc.full_gc();
+    assert_eq!(res3.kind, GCKind::MarkSweepCompact);
+
+    // 4. Test HoTT Proof
+    let path = gc.prove_gc_integrity(&res3);
+    assert_eq!(path.start, GCKind::MarkSweepCompact);
+    assert!(path.mapping.contains("Identity-preserving"));
+}

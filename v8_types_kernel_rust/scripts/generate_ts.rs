@@ -54,6 +54,9 @@ fn generate_all_sections(output: &mut String) -> std::io::Result<()> {
     // Section 53: Kernel Scheduler (AMB)
     generate_amb_types(output)?;
 
+    // Section 55: Garbage Collection (Orinoco)
+    generate_gc_types(output)?;
+
     // Section 29-33: Advanced Speculative Research
     generate_advanced_types(output)?;
 
@@ -112,6 +115,15 @@ fn generate_amb_types(output: &mut String) -> std::io::Result<()> {
     output.push_str("/** Section 53: Kernel Scheduler */\n");
     scan_and_export_enum(output, "src/amb/mod.rs", "TaskState")?;
     scan_and_export_struct(output, "src/amb/mod.rs", "KernelTask")?;
+    Ok(())
+}
+
+fn generate_gc_types(output: &mut String) -> std::io::Result<()> {
+    output.push_str("/** Section 55: Garbage Collection */\n");
+    scan_and_export_enum(output, "src/gc/mod.rs", "GCKind")?;
+    scan_and_export_enum(output, "src/gc/mod.rs", "MarkingColor")?;
+    scan_and_export_struct(output, "src/gc/mod.rs", "GCResult")?;
+    scan_and_export_struct(output, "src/gc/mod.rs", "OrinocoGC")?;
     Ok(())
 }
 
