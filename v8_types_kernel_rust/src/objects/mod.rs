@@ -221,7 +221,7 @@ impl JSArray {
 
         // Ensure we are at the tail of the elements data for push.
         // If not, relocation would be required (not implemented in this core).
-        if (offset + current_length) as usize == heap.elements_data.len() {
+        if (offset.wrapping_add(current_length)) as usize == heap.elements_data.len() {
             heap.elements_data.push(value);
 
             let new_length = {
@@ -231,13 +231,13 @@ impl JSArray {
                     limit: len_limit,
                     context: "JSArray::push (length update)",
                 })?;
-                *len_ref += 1;
+                *len_ref = len_ref.wrapping_add(1);
                 *len_ref
             };
 
             // Sync the JS 'length' property (stored in property slot 0).
             // Length is tagged as an Smi.
-            heap.set_property(self.index, 0, TaggedAddress((new_length as usize) << 1))?;
+            heap.set_property(self.index, 0, TaggedAddress((new_length as usize).wrapping_shl(1)))?;
             Ok(())
         } else {
             Err(FailureKind::SystemError {
@@ -269,8 +269,8 @@ impl JSString {
     /// Creates a new simulated `JSString`.
     pub fn new(heap: &mut Heap, map: MapIndex, length: u32, hash: u32) -> KernelResult<Self> {
         let index = heap.allocate_object(InstanceType::String, map)?;
-        heap.set_property(index, Self::LENGTH_SLOT, TaggedAddress((length as usize) << 1))?;
-        heap.set_property(index, Self::HASH_SLOT, TaggedAddress((hash as usize) << 1))?;
+        heap.set_property(index, Self::LENGTH_SLOT, TaggedAddress((length as usize).wrapping_shl(1)))?;
+        heap.set_property(index, Self::HASH_SLOT, TaggedAddress((hash as usize).wrapping_shl(1)))?;
         Ok(Self { index })
     }
 
@@ -300,7 +300,7 @@ impl SharedFunctionInfo {
 
     pub fn new(heap: &mut Heap, map: MapIndex, param_count: u32) -> KernelResult<Self> {
         let index = heap.allocate_object(InstanceType::SharedFunctionInfo, map)?;
-        heap.set_property(index, Self::FORMAL_PARAMETER_COUNT_SLOT, TaggedAddress((param_count as usize) << 1))?;
+        heap.set_property(index, Self::FORMAL_PARAMETER_COUNT_SLOT, TaggedAddress((param_count as usize).wrapping_shl(1)))?;
         Ok(Self { index })
     }
 }
@@ -325,8 +325,8 @@ impl FeedbackVector {
 
     pub fn increment_invocation_count(&self, heap: &mut Heap) -> KernelResult<()> {
         let current = heap.get_property(self.index, Self::INVOCATION_COUNT_SLOT)?;
-        let next = (current.0 >> 1) + 1;
-        heap.set_property(self.index, Self::INVOCATION_COUNT_SLOT, TaggedAddress(next << 1))
+        let next = (current.0.wrapping_shr(1)).wrapping_add(1);
+        heap.set_property(self.index, Self::INVOCATION_COUNT_SLOT, TaggedAddress(next.wrapping_shl(1)))
     }
 }
 

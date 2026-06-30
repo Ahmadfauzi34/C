@@ -31,7 +31,7 @@ impl WasmModule {
 
     /// Simulates the validation of Wasm wire bytes.
     pub fn validate(&mut self) -> KernelResult<()> {
-        if self.bytes.len() < 4 || &self.bytes[0..4] != b"\0asm" {
+        if self.bytes.len() < 4 || self.bytes.get(0..4).unwrap_or(&[]) != b"\0asm" {
             return Err(FailureKind::WasmValidationError {
                 offset: 0,
                 reason: "Invalid magic number (not a Wasm module)",

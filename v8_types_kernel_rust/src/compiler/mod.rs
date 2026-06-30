@@ -47,8 +47,8 @@ impl InlineCache {
     }
 
     pub fn record_hit(&mut self) {
-        self.hits += 1;
-        self.call_count += 1;
+        self.hits = self.hits.wrapping_add(1);
+        self.call_count = self.call_count.wrapping_add(1);
         if self.hits > 10 && self.state == ICState::Uninitialized {
             self.state = ICState::PreMonomorphic;
         } else if self.hits > 50 && self.state == ICState::PreMonomorphic {
@@ -57,8 +57,8 @@ impl InlineCache {
     }
 
     pub fn record_miss(&mut self) {
-        self.misses += 1;
-        self.call_count += 1;
+        self.misses = self.misses.wrapping_add(1);
+        self.call_count = self.call_count.wrapping_add(1);
         if self.misses > 2 && self.state == ICState::Monomorphic {
             self.state = ICState::Polymorphic;
         } else if self.misses > 10 {
@@ -99,7 +99,7 @@ impl SpeculativeJIT {
     pub fn optimize_block(&mut self, block_complexity: f64) -> KernelResult<()> {
         if self.predictor.predict_take_branch(block_complexity) {
             // Speculation: This block is stable enough for high-level optimization.
-            self.optimizations_performed += 1;
+            self.optimizations_performed = self.optimizations_performed.wrapping_add(1);
             Ok(())
         } else {
             // Speculation: Block is too unstable; optimization would likely trigger deopt.

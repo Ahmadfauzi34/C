@@ -46,12 +46,12 @@ impl V8Sandbox {
         let offset = ptr.0 as usize;
         if offset >= self.size {
             return Err(FailureKind::SecurityViolation {
-                ptr: self.base + offset,
+                ptr: self.base.wrapping_add(offset),
                 sandbox_base: self.base,
                 sandbox_size: self.size,
             });
         }
-        Ok(self.base + offset)
+        Ok(self.base.wrapping_add(offset))
     }
 
     /// Reserves a region within the sandbox.

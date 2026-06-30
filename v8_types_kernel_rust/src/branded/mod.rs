@@ -35,7 +35,7 @@ impl RawAddress {
     #[inline(always)]
     #[must_use]
     pub fn tag_object(self) -> TaggedAddress {
-        TaggedAddress(self.0 | 0x1)
+        TaggedAddress(self.0.wrapping_add(1))
     }
 
     /// Creates a null raw address.
@@ -53,7 +53,7 @@ impl RawAddress {
     /// Aligns an address to the nearest word boundary (8 bytes).
     #[must_use]
     pub fn align_to_word(self) -> Self {
-        RawAddress((self.0 + 7) & !7)
+        RawAddress(self.0.wrapping_add(7) & !7)
     }
 }
 
@@ -77,7 +77,7 @@ impl Smi {
     #[must_use]
     pub fn encode(value: i32) -> TaggedAddress {
         // Shift left by 1 to leave LSB as 0.
-        TaggedAddress((value as usize) << 1)
+        TaggedAddress((value as usize).wrapping_shl(1))
     }
 
     /// Decodes a `TaggedAddress` back into an Smi.
@@ -323,7 +323,7 @@ pub mod alignment {
 
     #[must_use]
     pub fn round_up(addr: usize) -> usize {
-        (addr + (ALIGNMENT - 1)) & !(ALIGNMENT - 1)
+        addr.wrapping_add(ALIGNMENT.wrapping_sub(1)) & !ALIGNMENT.wrapping_sub(1)
     }
 }
 

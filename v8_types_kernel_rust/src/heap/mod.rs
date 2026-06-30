@@ -98,10 +98,10 @@ impl Heap {
             marking_state: Vec::with_capacity(max_objects),
             properties_offsets: Vec::with_capacity(max_objects),
             properties_lengths: Vec::with_capacity(max_objects),
-            properties_data: Vec::with_capacity(max_objects * 4),
+            properties_data: Vec::with_capacity(max_objects.wrapping_mul(4)),
             elements_offsets: Vec::with_capacity(max_objects),
             elements_lengths: Vec::with_capacity(max_objects),
-            elements_data: Vec::with_capacity(max_objects * 8),
+            elements_data: Vec::with_capacity(max_objects.wrapping_mul(8)),
             segments: Vec::new(),
             max_objects,
             allocated_bytes: 0,
@@ -129,7 +129,8 @@ impl Heap {
         self.ages.push(0);
         self.marking_state.push(0);
 
-        let raw_offset = (id as usize) * 32;
+
+        let raw_offset = (id as usize).wrapping_mul(32);
         self.tagged_addresses.push(TaggedAddress(raw_offset | 0x1));
 
         self.properties_offsets.push(self.properties_data.len() as u32);
@@ -138,7 +139,7 @@ impl Heap {
         self.elements_offsets.push(self.elements_data.len() as u32);
         self.elements_lengths.push(0);
 
-        self.allocated_bytes += 32;
+        self.allocated_bytes = self.allocated_bytes.wrapping_add(32);
         if self.allocated_bytes > self.peak_memory {
             self.peak_memory = self.allocated_bytes;
         }
@@ -167,7 +168,7 @@ impl Heap {
             });
         }
 
-        let data_idx = (offset + slot) as usize;
+        let data_idx = (offset.wrapping_add(slot)) as usize;
         self.properties_data
             .get(data_idx)
             .copied()
@@ -193,7 +194,7 @@ impl Heap {
         })?;
 
         if slot >= current_length {
-            if (offset + slot) as usize == self.properties_data.len() {
+            if (offset.wrapping_add(slot)) as usize == self.properties_data.len() {
                 self.properties_data.push(value);
                 let len_limit = self.properties_lengths.len();
                 let len_ref = self.properties_lengths.get_mut(idx).ok_or(FailureKind::OutOfBounds {
@@ -201,7 +202,7 @@ impl Heap {
                     limit: len_limit,
                     context: "Heap::set_property (length update)",
                 })?;
-                *len_ref += 1;
+                *len_ref = len_ref.wrapping_add(1);
                 Ok(())
             } else {
                 Err(FailureKind::SystemError {
@@ -210,7 +211,7 @@ impl Heap {
                 })
             }
         } else {
-            let data_idx = (offset + slot) as usize;
+            let data_idx = (offset.wrapping_add(slot)) as usize;
             let data_limit = self.properties_data.len();
             let entry = self.properties_data.get_mut(data_idx).ok_or(FailureKind::OutOfBounds {
                 index: data_idx,

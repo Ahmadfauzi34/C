@@ -47,9 +47,11 @@ impl TopologicalSpace {
     /// Records a movement through the space, updating curvature heuristics.
     /// Higher complexity in transitions increases the "tension" (curvature).
     pub fn record_path_segment(&mut self, complexity: f64) {
-        self.nodes_traversed += 1;
+        self.nodes_traversed = self.nodes_traversed.saturating_add(1);
         // Speculative heuristic: Curvature increases with complexity.
-        self.curvature += complexity / f64::from(self.dimension);
+        if self.dimension > 0 {
+            self.curvature += complexity / f64::from(self.dimension);
+        }
         // Simple entropy update (simulated).
         self.path_entropy += 0.1 * complexity;
     }
@@ -93,19 +95,18 @@ impl QuantumState {
     /// # Errors
     /// Returns `FailureKind::SystemError` if the observation index is invalid.
     pub fn observe(&mut self, state_index: usize) -> KernelResult<f32> {
-        if state_index >= 4 {
-            return Err(FailureKind::SystemError {
-                code: 901,
-                message: "Speculative Observation Failure: Invalid type bin index".to_string(),
-            });
-        }
+        let result = *self.amplitudes.get(state_index).ok_or_else(|| FailureKind::SystemError {
+            code: 901,
+            message: "Speculative Observation Failure: Invalid type bin index".to_string(),
+        })?;
 
-        let result = self.amplitudes[state_index];
         self.coherence = 0.0; // State is no longer in superposition
 
         // Collapse the probability wave into the observed state.
         for i in 0..4 {
-            self.amplitudes[i] = if i == state_index { 1.0 } else { 0.0 };
+            if let Some(amp) = self.amplitudes.get_mut(i) {
+                *amp = if i == state_index { 1.0 } else { 0.0 };
+            }
         }
 
         Ok(result)
@@ -142,7 +143,9 @@ impl SpeculativeBranchPredictor {
     pub fn predict_take_branch(&mut self, path_complexity: f64) -> bool {
         self.space.record_path_segment(path_complexity);
         let prediction = self.space.stability_score() > 0.5;
-        if prediction { self.successful_predictions += 1; }
+        if prediction {
+            self.successful_predictions = self.successful_predictions.saturating_add(1);
+        }
         prediction
     }
 }

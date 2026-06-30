@@ -284,8 +284,8 @@ impl CircuitBreaker {
     /// Records an operation result.
     pub fn record<T, E>(&mut self, result: &Result<T, E>) {
         if self.is_tripped { return; }
-        self.total_ops += 1;
-        if result.is_err() { self.errors += 1; }
+        self.total_ops = self.total_ops.wrapping_add(1);
+        if result.is_err() { self.errors = self.errors.wrapping_add(1); }
         if self.total_ops >= self.min_ops {
             let rate = self.errors as f64 / self.total_ops as f64;
             if rate > self.threshold { self.is_tripped = true; }
