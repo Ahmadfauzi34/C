@@ -318,7 +318,7 @@ pub mod alignment {
 
     #[must_use]
     pub fn is_aligned(addr: usize) -> bool {
-        addr.is_multiple_of(ALIGNMENT)
+        addr % ALIGNMENT == 0
     }
 
     #[must_use]

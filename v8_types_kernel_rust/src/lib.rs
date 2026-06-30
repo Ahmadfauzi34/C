@@ -37,6 +37,7 @@ pub mod heap;
 pub mod objects;
 pub mod sandbox;
 pub mod streaming;
+pub mod topos;
 pub mod wasm;
 
 use crate::dffdf::FailureKind;
