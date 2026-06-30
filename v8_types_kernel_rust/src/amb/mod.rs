@@ -84,7 +84,7 @@ impl MacroBatcher {
                 });
             }
         }
-        self.processed_batches += 1;
+        self.processed_batches = self.processed_batches.wrapping_add(1);
         Ok(())
     }
 }
@@ -180,7 +180,7 @@ impl MicroKernelScheduler {
             });
         }
 
-        self.context_switches += 1;
+        self.context_switches = self.context_switches.wrapping_add(1);
 
         // Strategy: Round-Robin (Pop from front, push to back)
         let mut next_task = self.task_queue.remove(0);
@@ -203,7 +203,7 @@ impl MicroKernelScheduler {
     /// Called by the simulated hardware clock. If the current task has
     /// exhausted its time quanta, it is forced to yield (preempted).
     pub fn handle_timer_tick(&mut self) {
-        self.total_uptime_ticks += 1;
+        self.total_uptime_ticks = self.total_uptime_ticks.wrapping_add(1);
 
         if let Some(pid) = self.current_pid {
             println!("[KERNEL] Clock Interrupt: PID {} quantum expired. Triggering preemption.", pid);
@@ -232,9 +232,9 @@ impl Semaphore {
     /// If count is zero, the task blocks until a signal is received.
     pub fn wait(&mut self) {
         if self.count > 0 {
-            self.count -= 1;
+            self.count = self.count.wrapping_sub(1);
         } else {
-            self.waiters += 1;
+            self.waiters = self.waiters.wrapping_add(1);
             // In a real kernel, we would call scheduler.block_current_task()
         }
     }
@@ -244,9 +244,9 @@ impl Semaphore {
     /// Increments count or releases one waiting task from the queue.
     pub fn signal(&mut self) {
         if self.waiters > 0 {
-            self.waiters -= 1;
+            self.waiters = self.waiters.wrapping_sub(1);
         } else if self.count < self.max_capacity {
-            self.count += 1;
+            self.count = self.count.wrapping_add(1);
         }
     }
 }

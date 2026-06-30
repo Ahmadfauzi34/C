@@ -116,13 +116,13 @@ impl OrinocoGC {
 
     /// Performs a Scavenge cycle (Young Generation).
     pub fn scavenge(&mut self) -> GCResult {
-        let objects_to_move = 42; // Simulated count
-        let bytes_moved = objects_to_move * 64;
+        let objects_to_move: usize = 42; // Simulated count
+        let bytes_moved = objects_to_move.wrapping_mul(64);
 
         self.young_gen.flip();
 
         GCResult {
-            bytes_freed: self.young_gen.capacity - bytes_moved,
+            bytes_freed: self.young_gen.capacity.wrapping_sub(bytes_moved),
             duration_ms: 1.2,
             survived_objects: objects_to_move,
             kind: GCKind::Scavenge,
