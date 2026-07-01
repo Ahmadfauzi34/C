@@ -43,7 +43,7 @@ fn main() -> std::io::Result<()> {
                 if let Some(name_end) = content[name_start..].find(|c: char| !c.is_alphanumeric() && c != '_' && c != '<') {
                     let name = &content[name_start..name_start + name_end];
                     let clean_name = name.split('<').next().unwrap_or(name);
-                    if let Some(brace_or_semi) = content[name_start + name_end..].find(|c| c == '{' || c == ';') {
+                    if let Some(brace_or_semi) = content[name_start + name_end..].find(['{', ';']) {
                         let char_found = content.as_bytes()[name_start + name_end + brace_or_semi] as char;
                         if char_found == '{' {
                             let actual_body_start = name_start + name_end + brace_or_semi + 1;
@@ -82,7 +82,7 @@ fn export_enum(output: &mut String, name: &str, body: &str) {
         if trimmed.is_empty() || trimmed.starts_with('/') || trimmed.starts_with('#') { continue; }
         let variant_full = trimmed.split(',').next().unwrap_or("").trim();
         if variant_full.is_empty() { continue; }
-        let variant_name = variant_full.split(|c: char| c == '(' || c == '{' || c == '=').next().unwrap_or("").trim();
+        let variant_name = variant_full.split(['(', '{', '=']).next().unwrap_or("").trim();
         if !variant_name.is_empty() && variant_name.chars().next().unwrap_or(' ').is_uppercase() {
             output.push_str(&format!("  {} = {},\n", variant_name, val));
             val += 1;
@@ -114,7 +114,7 @@ fn map_type(t: &str) -> String {
     if t == "bool" { return "boolean".to_string(); }
     if t == "BrandedVAddr" || t == "TaggedAddress" || t == "BrandedPAddr" { return "bigint".to_string(); }
     if t == "MapIndex" || t == "ObjectIndex" || t == "BrandedTaskId" { return "number".to_string(); }
-    if t.starts_with("Vec<") { return "ReadonlyArray<any>".to_string(); }
-    if t.starts_with("HashMap<") { return "{ [key: string]: any }".to_string(); }
-    "any".to_string()
+    if t.starts_with("Vec<") { return "ReadonlyArray<unknown>".to_string(); }
+    if t.starts_with("HashMap<") { return "{ [key: string]: unknown }".to_string(); }
+    "unknown".to_string()
 }

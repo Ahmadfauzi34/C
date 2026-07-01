@@ -23,7 +23,7 @@ export interface MemorySegment {
   readonly start_address: number;
   readonly size: number;
   readonly used_bytes: number;
-  readonly protection: any;
+  readonly protection: unknown;
 }
 
 export interface ProtectionFlags {
@@ -33,18 +33,18 @@ export interface ProtectionFlags {
 }
 
 export interface Heap {
-  readonly instance_types: ReadonlyArray<any>;
-  readonly map_indices: ReadonlyArray<any>;
-  readonly tagged_addresses: ReadonlyArray<any>;
-  readonly ages: ReadonlyArray<any>;
-  readonly marking_state: ReadonlyArray<any>;
-  readonly properties_offsets: ReadonlyArray<any>;
-  readonly properties_lengths: ReadonlyArray<any>;
-  readonly properties_data: ReadonlyArray<any>;
-  readonly elements_offsets: ReadonlyArray<any>;
-  readonly elements_lengths: ReadonlyArray<any>;
-  readonly elements_data: ReadonlyArray<any>;
-  readonly segments: ReadonlyArray<any>;
+  readonly instance_types: ReadonlyArray<unknown>;
+  readonly map_indices: ReadonlyArray<unknown>;
+  readonly tagged_addresses: ReadonlyArray<unknown>;
+  readonly ages: ReadonlyArray<unknown>;
+  readonly marking_state: ReadonlyArray<unknown>;
+  readonly properties_offsets: ReadonlyArray<unknown>;
+  readonly properties_lengths: ReadonlyArray<unknown>;
+  readonly properties_data: ReadonlyArray<unknown>;
+  readonly elements_offsets: ReadonlyArray<unknown>;
+  readonly elements_lengths: ReadonlyArray<unknown>;
+  readonly elements_data: ReadonlyArray<unknown>;
+  readonly segments: ReadonlyArray<unknown>;
   readonly max_objects: number;
   readonly allocated_bytes: number;
   readonly gc_count: number;
@@ -52,10 +52,10 @@ export interface Heap {
 }
 
 export interface PageTable {
-  readonly l4_table: ReadonlyArray<any>;
-  readonly l3_tables: ReadonlyArray<any>;
-  readonly l2_tables: ReadonlyArray<any>;
-  readonly l1_tables: ReadonlyArray<any>;
+  readonly l4_table: ReadonlyArray<unknown>;
+  readonly l3_tables: ReadonlyArray<unknown>;
+  readonly l2_tables: ReadonlyArray<unknown>;
+  readonly l1_tables: ReadonlyArray<unknown>;
   readonly total_mappings: number;
 }
 
@@ -69,7 +69,7 @@ export interface HeapStats {
 }
 
 export interface MarkingBitmap {
-  readonly data: ReadonlyArray<any>;
+  readonly data: ReadonlyArray<unknown>;
   readonly size_bits: number;
 }
 
@@ -190,7 +190,7 @@ export interface MapTransition {
 }
 
 export interface TransitionTree {
-  readonly transitions: ReadonlyArray<any>;
+  readonly transitions: ReadonlyArray<unknown>;
 }
 
 export interface DoubleField {
@@ -246,14 +246,14 @@ export enum DeoptReason {
 }
 
 export interface InlineCache {
-  readonly state: any;
+  readonly state: unknown;
   readonly hits: number;
   readonly misses: number;
   readonly call_count: number;
 }
 
 export interface SpeculativeJIT {
-  readonly predictor: any;
+  readonly predictor: unknown;
   readonly optimizations_performed: number;
 }
 
@@ -263,7 +263,7 @@ export interface OptimizationPass {
 }
 
 export interface Deoptimizer {
-  readonly reason: any;
+  readonly reason: unknown;
   readonly bailout_id: number;
 }
 
@@ -273,7 +273,7 @@ export interface RegisterAllocator {
 
 export interface CodeCache {
   readonly version: number;
-  readonly payload: ReadonlyArray<any>;
+  readonly payload: ReadonlyArray<unknown>;
 }
 
 export enum FailureKind {
@@ -299,13 +299,13 @@ export interface CircuitBreaker {
 }
 
 export interface DiagnosticReport {
-  readonly failures: ReadonlyArray<any>;
+  readonly failures: ReadonlyArray<unknown>;
   readonly timestamp: number;
   readonly session_id: string;
 }
 
 export interface ErrorLog {
-  readonly entries: ReadonlyArray<any>;
+  readonly entries: ReadonlyArray<unknown>;
 }
 
 export enum GCReason {
@@ -337,7 +337,7 @@ export interface GCResult {
   readonly bytes_freed: number;
   readonly duration_ms: number;
   readonly survived_objects: number;
-  readonly kind: any;
+  readonly kind: unknown;
 }
 
 export interface NewSpace {
@@ -350,14 +350,14 @@ export interface NewSpace {
 export interface OldSpace {
   readonly base: number;
   readonly capacity: number;
-  readonly free_list: ReadonlyArray<any>;
+  readonly free_list: ReadonlyArray<unknown>;
 }
 
 export interface OrinocoGC {
-  readonly young_gen: any;
-  readonly old_gen: any;
-  readonly marking_state: any;
-  readonly worklist: ReadonlyArray<any>;
+  readonly young_gen: unknown;
+  readonly old_gen: unknown;
+  readonly marking_state: unknown;
+  readonly worklist: ReadonlyArray<unknown>;
 }
 
 export enum PageTableLevel {
@@ -381,35 +381,35 @@ export enum ModalOperator {
 }
 
 export interface SheafSection {
-  readonly domain: any;
-  readonly data: ReadonlyArray<any>;
+  readonly domain: unknown;
+  readonly data: ReadonlyArray<unknown>;
   readonly version: number;
 }
 
 export interface PageRange {
   readonly start: bigint;
   readonly end: bigint;
-  readonly level: any;
+  readonly level: unknown;
 }
 
 export interface CechCohomology {
   readonly degree: number;
   readonly cocycle: boolean;
-  readonly obstruction: any;
+  readonly obstruction: unknown;
 }
 
 export interface PageOverlap {
-  readonly levels: ReadonlyArray<any>;
-  readonly virtual_range: any;
-  readonly physical_mappings: ReadonlyArray<any>;
+  readonly levels: ReadonlyArray<unknown>;
+  readonly virtual_range: unknown;
+  readonly physical_mappings: ReadonlyArray<unknown>;
 }
 
 export interface MmuSheaf {
-  readonly sections: { [key: string]: any };
+  readonly sections: { [key: string]: unknown };
 }
 
 export interface SchedulerTopos {
-  readonly stages: ReadonlyArray<any>;
+  readonly stages: ReadonlyArray<unknown>;
   readonly current_stage: number;
 }
 
@@ -418,7 +418,7 @@ export interface MemoryNode {
 }
 
 export interface MemoryCohesion {
-  readonly nodes: ReadonlyArray<any>;
+  readonly nodes: ReadonlyArray<unknown>;
 }
 
 export interface MemoryShape {
@@ -434,7 +434,7 @@ export interface TracePoint {
 }
 
 export interface ExecutionHomotopy {
-  readonly paths: ReadonlyArray<any>;
+  readonly paths: ReadonlyArray<unknown>;
 }
 
 export interface MemoryAccess {
@@ -444,23 +444,23 @@ export interface MemoryAccess {
 
 export interface ErrorFactorization {
   readonly epi: string;
-  readonly mono: { [key: string]: any };
+  readonly mono: { [key: string]: unknown };
 }
 
 export interface SystemContext {
-  readonly valid_state: { [key: string]: any };
+  readonly valid_state: { [key: string]: unknown };
 }
 
 export interface ObjectTwoTopos {
-  readonly hierarchy: { [key: string]: any };
+  readonly hierarchy: { [key: string]: unknown };
 }
 
 export interface PathP {
-  readonly start: any;
-  readonly end: any;
+  readonly start: unknown;
+  readonly end: unknown;
   readonly mapping: string;
 }
 
 export interface Fibration {
-  readonly projection: any;
+  readonly projection: unknown;
 }

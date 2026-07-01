@@ -179,6 +179,7 @@ pub struct HoTTCompilerVerifier;
 
 impl HoTTCompilerVerifier {
     /// Uses a Fibration to check if an optimized state projects back to bytecode.
+    #[must_use]
     pub fn verify_optimization_equivalence(
         optimized_state: &ExecutionTier,
         bytecode_path: &PathP<ExecutionTier>

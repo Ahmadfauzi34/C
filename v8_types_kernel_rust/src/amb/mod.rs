@@ -31,18 +31,18 @@ use std::collections::VecDeque;
 
 /// Represents an atomic sequence of kernel operations.
 ///
-/// In this simulation, an AtomicBatch acts as a "System Call" or a
+/// In this simulation, an `AtomicBatch` acts as a "System Call" or a
 /// sequence of kernel-level instructions that must execute without
 /// interruption to maintain system integrity.
 pub struct AtomicBatch {
     pub id: u64,
-    /// Operations are boxed closures that return a KernelResult.
+    /// Operations are boxed closures that return a `KernelResult`.
     pub operations: Vec<Box<dyn FnOnce() -> KernelResult<()>>>,
 }
 
 /// Orchestrates batches of kernel work with safety guardrails.
 ///
-/// The MacroBatcher ensures that the kernel does not enter a state of
+/// The `MacroBatcher` ensures that the kernel does not enter a state of
 /// continuous failure (thrashing) by using a circuit breaker.
 pub struct MacroBatcher {
     pub circuit_breaker: CircuitBreaker,
@@ -51,7 +51,7 @@ pub struct MacroBatcher {
 }
 
 impl MacroBatcher {
-    /// Creates a new MacroBatcher with diagnostic monitoring.
+    /// Creates a new `MacroBatcher` with diagnostic monitoring.
     #[must_use]
     pub fn new() -> Self {
         Self {
@@ -66,6 +66,10 @@ impl MacroBatcher {
     /// # Fail-Fast Diagnostics
     /// If the operation fails, it records the failure in the circuit breaker.
     /// If the error rate exceeds 10% after 5 operations, the breaker trips.
+    ///
+    /// # Errors
+    /// Returns `FailureKind::CircuitBreakerTripped` if error rate exceeds threshold.
+    /// Returns `FailureKind::BatchFailure` if an operation fails.
     pub fn submit(&mut self, batch: AtomicBatch) -> KernelResult<()> {
         if self.circuit_breaker.is_tripped() {
             return Err(FailureKind::CircuitBreakerTripped {
@@ -214,7 +218,7 @@ impl MicroKernelScheduler {
         self.total_uptime_ticks = self.total_uptime_ticks.wrapping_add(1);
 
         if let Some(pid) = self.current_pid {
-            println!("[KERNEL] Clock Interrupt: PID {} quantum expired. Triggering preemption.", pid);
+            println!("[KERNEL] Clock Interrupt: PID {pid} quantum expired. Triggering preemption.");
             let _ = self.context_switch();
         }
     }
@@ -321,11 +325,11 @@ impl Default for JobMetrics {
 // DETAILED ARCHITECTURAL NOTES FOR KERNEL DEVELOPERS
 // -----------------------------------------------------------------------------
 
-/// Guide to Context Switching on x86_64 and RISC-V.
+/// Guide to Context Switching on `x86_64` and `RISC-V`.
 ///
 /// ## The Context Switching Process
 /// 1. **Save CPU State**: All general-purpose registers (RAX, RBX, etc. on x86;
-///    x1-x31 on RISC-V) are pushed onto the current task's stack.
+///    x1-x31 on `RISC-V`) are pushed onto the current task's stack.
 /// 2. **Switch Stacks**: The kernel changes the RSP/sp register to point to
 ///    the stack of the next task.
 /// 3. **Restore CPU State**: The registers of the next task are popped from

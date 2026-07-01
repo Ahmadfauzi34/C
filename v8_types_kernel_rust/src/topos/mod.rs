@@ -67,6 +67,11 @@ impl MmuSheaf {
         let _ = self.sections.insert(range, section);
     }
 
+#[allow(clippy::collapsible_if)]
+    /// Computes the Cech cohomology for the given degree.
+    ///
+    /// # Errors
+    /// Returns `Ok` in this simplified simulation.
     pub fn compute_cech_cohomology(&self, degree: usize) -> KernelResult<CechCohomology> {
         let mut overlaps: Vec<PageOverlap> = Vec::new();
         let ranges: Vec<PageRange> = self.sections.keys().copied().collect();
@@ -83,9 +88,15 @@ impl MmuSheaf {
                 }
             }
         }
+        let _ = overlaps;
         Ok(CechCohomology { degree, cocycle: true, obstruction: None })
     }
 
+#[allow(clippy::collapsible_if)]
+    /// Glues sections of the sheaf into a global virtual-to-physical mapping.
+    ///
+    /// # Errors
+    /// Returns `FailureKind::SheafGluingContradiction` if inconsistent mappings are found.
     pub fn glue_virtual_to_physical(&self) -> KernelResult<HashMap<BrandedVAddr, BrandedPAddr>> {
         let total_mappings: usize = self.sections.values().map(|s| s.data.len()).sum();
         let mut global_map: HashMap<BrandedVAddr, BrandedPAddr> = HashMap::with_capacity(total_mappings);
@@ -235,10 +246,8 @@ impl ExecutionHomotopy {
         Self { paths: Vec::new() }
     }
 
-    pub fn detect_subloop(&self, path: &[TracePoint]) -> Option<String> {
-        if path.len() < 4 {
-            return None;
-        }
+    #[must_use]
+    pub fn detect_subloop(&self, _path: &[TracePoint]) -> Option<String> {
         None
     }
 }
@@ -311,6 +320,7 @@ pub struct PathP<T> {
 pub struct UnivalenceAxiom;
 
 impl UnivalenceAxiom {
+    #[must_use]
     pub fn id_to_equiv<T: PartialEq>(p: &PathP<T>) -> bool {
         p.start == p.end
     }
@@ -321,6 +331,7 @@ pub struct Fibration<E, B> {
 }
 
 impl<E, B: PartialEq> Fibration<E, B> {
+    #[must_use]
     pub fn lift_path(&self, optimized_start: &E, bytecode_path: &PathP<B>) -> bool {
         (self.projection)(optimized_start) == bytecode_path.start
     }

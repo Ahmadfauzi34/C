@@ -32,7 +32,7 @@ impl RawAddress {
     /// Tags a raw address as a `HeapObject`.
     ///
     /// In V8, a `HeapObject` pointer has the least significant bit set to 1.
-    #[inline(always)]
+    #[inline]
     #[must_use]
     pub fn tag_object(self) -> TaggedAddress {
         TaggedAddress(self.0.wrapping_add(1))
@@ -73,17 +73,20 @@ impl Smi {
     ///
     /// The encoding process shifts the value left by 1 bit, ensuring the LSB
     /// is 0. This differentiates it from a `HeapObject` pointer (LSB=1).
-    #[inline(always)]
+    #[inline]
     #[must_use]
     pub fn encode(value: i32) -> TaggedAddress {
         // Shift left by 1 to leave LSB as 0.
-        TaggedAddress((value as usize).wrapping_shl(1))
+        #[allow(clippy::cast_sign_loss)]
+        let val = value as usize;
+        TaggedAddress(val.wrapping_shl(1))
     }
 
     /// Decodes a `TaggedAddress` back into an Smi.
     ///
+    /// # Errors
     /// Returns a `KernelError` if the tagged address does not have an Smi tag.
-    #[inline(always)]
+    #[inline]
     pub fn decode(tagged: TaggedAddress) -> KernelResult<Self> {
         if tagged.0 & 0x1 == 0 {
             // It's an Smi. We shift right to recover the signed 32-bit integer.
@@ -113,14 +116,14 @@ pub struct TaggedAddress(pub usize);
 
 impl TaggedAddress {
     /// Checks if the tagged address is an Smi (LSB is 0).
-    #[inline(always)]
+    #[inline]
     #[must_use]
     pub fn is_smi(self) -> bool {
         (self.0 & 0x1) == 0
     }
 
     /// Checks if the tagged address is a `HeapObject` (LSB is 1).
-    #[inline(always)]
+    #[inline]
     #[must_use]
     pub fn is_heap_object(self) -> bool {
         (self.0 & 0x1) == 1
@@ -128,8 +131,9 @@ impl TaggedAddress {
 
     /// Untags a `HeapObject` address to get the raw memory location.
     ///
+    /// # Errors
     /// Returns `FailureKind::InvalidTag` if the address is actually an Smi.
-    #[inline(always)]
+    #[inline]
     pub fn untag_object(self) -> KernelResult<RawAddress> {
         if self.is_heap_object() {
             Ok(RawAddress(self.0 & !0x1))
@@ -177,21 +181,21 @@ impl<const SHIFT: u8, const SIZE: u8> BitField<SHIFT, SIZE> {
     pub const MASK: usize = ((1 << SIZE) - 1) << SHIFT;
 
     /// Decodes the field from a word.
-    #[inline(always)]
+    #[inline]
     #[must_use]
     pub fn decode(value: usize) -> usize {
         (value & Self::MASK) >> SHIFT
     }
 
     /// Encodes a value into the field's position.
-    #[inline(always)]
+    #[inline]
     #[must_use]
     pub fn encode(value: usize) -> usize {
         (value << SHIFT) & Self::MASK
     }
 
     /// Updates the field in an existing word.
-    #[inline(always)]
+    #[inline]
     #[must_use]
     pub fn update(original: usize, value: usize) -> usize {
         (original & !Self::MASK) | Self::encode(value)
@@ -276,7 +280,10 @@ impl WeakRef {
     }
 
     /// Attempts to clear the weak tag and return the raw address.
-    #[inline(always)]
+    ///
+    /// # Errors
+    /// Returns `FailureKind::InvalidTag` if the tag is not a weak reference.
+    #[inline]
     pub fn untag(tagged: TaggedAddress) -> KernelResult<RawAddress> {
         if (tagged.0 & 0x3) == 0x3 {
             Ok(RawAddress(tagged.0 & !0x3))
@@ -301,7 +308,7 @@ pub mod pointer_compression {
     /// Compresses a 64-bit tagged address into a 32-bit offset from the cage base.
     #[must_use]
     pub fn compress(_base: usize, addr: TaggedAddress) -> u32 {
-        (addr.0 & 0xFFFFFFFF) as u32
+        (addr.0 & 0xFFFF_FFFF) as u32
     }
 
     /// Decompresses a 32-bit offset into a full 64-bit tagged address.
@@ -321,7 +328,7 @@ pub mod alignment {
 
     #[must_use]
     pub fn is_aligned(addr: usize) -> bool {
-        addr % ALIGNMENT == 0
+        addr.is_multiple_of(ALIGNMENT)
     }
 
     #[must_use]

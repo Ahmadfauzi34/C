@@ -1,6 +1,6 @@
 //! V8-style Heap Memory Management.
 //!
-//! This module implements a Structure of Arrays (SoA) layout for simulating
+//! This module implements a Structure of Arrays (`SoA`) layout for simulating
 //! a managed heap. All "objects" are indices into these arrays.
 //!
 //! # Rationale for Kernel Development
@@ -26,7 +26,7 @@ pub struct ObjectIndex(pub u32);
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct MapIndex(pub u32);
 
-/// Represents the type of a HeapObject in the V8 simulation.
+/// Represents the type of a `HeapObject` in the V8 simulation.
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum InstanceType {
     JSObject,
@@ -57,7 +57,7 @@ pub struct ProtectionFlags {
     pub executable: bool,
 }
 
-/// The Heap structure using Structure of Arrays (SoA).
+/// The `Heap` structure using Structure of Arrays (`SoA`).
 pub struct Heap {
     // --- Metadata SoA ---
     pub instance_types: Vec<InstanceType>,
@@ -111,6 +111,9 @@ impl Heap {
     }
 
     /// Allocates a new object slot in the heap.
+    ///
+    /// # Errors
+    /// Returns `FailureKind::HeapExhausted` if the heap is full.
     pub fn allocate_object(
         &mut self,
         instance_type: InstanceType,
@@ -147,6 +150,10 @@ impl Heap {
         Ok(ObjectIndex(id))
     }
 
+    /// Gets a property from the object at the given index and slot.
+    ///
+    /// # Errors
+    /// Returns `FailureKind::OutOfBounds` if the index or slot is out of bounds.
     #[inline]
     pub fn get_property(&self, id: ObjectIndex, slot: u32) -> KernelResult<TaggedAddress> {
         let idx = id.0 as usize;
@@ -180,6 +187,11 @@ impl Heap {
             })
     }
 
+    /// Sets a property on the object at the given index and slot.
+    ///
+    /// # Errors
+    /// Returns `FailureKind::OutOfBounds` if the index is out of bounds.
+    /// Returns `FailureKind::SystemError` if property growth is violated.
     #[inline]
     pub fn set_property(&mut self, id: ObjectIndex, slot: u32, value: TaggedAddress) -> KernelResult<()> {
         let idx = id.0 as usize;
@@ -209,7 +221,7 @@ impl Heap {
             } else {
                 Err(FailureKind::SystemError {
                     code: 501,
-                    message: format!("In-place property growth violation for Object {}", idx),
+                    message: format!("In-place property growth violation for Object {idx}"),
                 })
             }
         } else {
@@ -225,6 +237,10 @@ impl Heap {
         }
     }
 
+    /// Gets the instance type of the object at the given index.
+    ///
+    /// # Errors
+    /// Returns `FailureKind::OutOfBounds` if the index is out of bounds.
     #[inline]
     pub fn get_instance_type(&self, id: ObjectIndex) -> KernelResult<InstanceType> {
         self.instance_types
@@ -282,7 +298,7 @@ impl PageTable {
 
     /// Simulates a virtual-to-physical address translation.
     ///
-    /// ## Translation Logic (x86_64 style)
+    /// ## Translation Logic (`x86_64` style)
     /// 1. Bits 47-39: PML4 Index
     /// 2. Bits 38-30: PDP Index
     /// 3. Bits 29-21: PD Index
@@ -292,10 +308,15 @@ impl PageTable {
     /// # Errors
     /// Returns `FailureKind::SystemError` if the page is not mapped.
     pub fn translate_address(&self, virtual_addr: usize) -> KernelResult<usize> {
-        let _l4_idx = (virtual_addr >> 39) & 0x1FF;
-        let _l3_idx = (virtual_addr >> 30) & 0x1FF;
-        let _l2_idx = (virtual_addr >> 21) & 0x1FF;
-        let _l1_idx = (virtual_addr >> 12) & 0x1FF;
+        let l4_idx = (virtual_addr >> 39) & 0x1FF;
+        let l3_idx = (virtual_addr >> 30) & 0x1FF;
+        let l2_idx = (virtual_addr >> 21) & 0x1FF;
+        let l1_idx = (virtual_addr >> 12) & 0x1FF;
+
+        let _ = l4_idx;
+        let _ = l3_idx;
+        let _ = l2_idx;
+        let _ = l1_idx;
 
         // Mock translation logic: lower addresses are mapped, higher are holes.
         if virtual_addr < 0x0000_7FFF_FFFF_FFFF {
