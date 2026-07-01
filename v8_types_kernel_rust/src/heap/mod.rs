@@ -147,6 +147,7 @@ impl Heap {
         Ok(ObjectIndex(id))
     }
 
+    #[inline]
     pub fn get_property(&self, id: ObjectIndex, slot: u32) -> KernelResult<TaggedAddress> {
         let idx = id.0 as usize;
         let offset = *self.properties_offsets.get(idx).ok_or(FailureKind::OutOfBounds {
@@ -179,6 +180,7 @@ impl Heap {
             })
     }
 
+    #[inline]
     pub fn set_property(&mut self, id: ObjectIndex, slot: u32, value: TaggedAddress) -> KernelResult<()> {
         let idx = id.0 as usize;
         let offset = *self.properties_offsets.get(idx).ok_or(FailureKind::OutOfBounds {
@@ -223,6 +225,7 @@ impl Heap {
         }
     }
 
+    #[inline]
     pub fn get_instance_type(&self, id: ObjectIndex) -> KernelResult<InstanceType> {
         self.instance_types
             .get(id.0 as usize)

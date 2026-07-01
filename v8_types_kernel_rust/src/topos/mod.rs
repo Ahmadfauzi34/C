@@ -87,7 +87,8 @@ impl MmuSheaf {
     }
 
     pub fn glue_virtual_to_physical(&self) -> KernelResult<HashMap<BrandedVAddr, BrandedPAddr>> {
-        let mut global_map: HashMap<BrandedVAddr, BrandedPAddr> = HashMap::new();
+        let total_mappings: usize = self.sections.values().map(|s| s.data.len()).sum();
+        let mut global_map: HashMap<BrandedVAddr, BrandedPAddr> = HashMap::with_capacity(total_mappings);
         for (range, section) in &self.sections {
             for (idx, pa) in section.data.iter().enumerate() {
                 let va = BrandedVAddr(range.start.0.wrapping_add(idx as u64));
