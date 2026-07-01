@@ -83,6 +83,7 @@ impl Smi {
     /// Decodes a `TaggedAddress` back into an Smi.
     ///
     /// Returns a `KernelError` if the tagged address does not have an Smi tag.
+    #[inline(always)]
     pub fn decode(tagged: TaggedAddress) -> KernelResult<Self> {
         if tagged.0 & 0x1 == 0 {
             // It's an Smi. We shift right to recover the signed 32-bit integer.
@@ -128,6 +129,7 @@ impl TaggedAddress {
     /// Untags a `HeapObject` address to get the raw memory location.
     ///
     /// Returns `FailureKind::InvalidTag` if the address is actually an Smi.
+    #[inline(always)]
     pub fn untag_object(self) -> KernelResult<RawAddress> {
         if self.is_heap_object() {
             Ok(RawAddress(self.0 & !0x1))
@@ -274,6 +276,7 @@ impl WeakRef {
     }
 
     /// Attempts to clear the weak tag and return the raw address.
+    #[inline(always)]
     pub fn untag(tagged: TaggedAddress) -> KernelResult<RawAddress> {
         if (tagged.0 & 0x3) == 0x3 {
             Ok(RawAddress(tagged.0 & !0x3))

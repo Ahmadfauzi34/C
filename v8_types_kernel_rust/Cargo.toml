@@ -16,5 +16,9 @@ path = "scripts/generate_ts.rs"
 name = "amb_benchmark"
 harness = false
 
+[[bench]]
+name = "scheduler_bench"
+harness = false
+
 [lib]
 path = "src/lib.rs"

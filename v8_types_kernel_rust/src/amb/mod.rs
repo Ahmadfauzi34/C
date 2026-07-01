@@ -27,6 +27,7 @@
 use crate::KernelResult;
 use crate::dffdf::FailureKind;
 use crate::dffdf::CircuitBreaker;
+use std::collections::VecDeque;
 
 /// Represents an atomic sequence of kernel operations.
 ///
@@ -140,7 +141,7 @@ pub struct KernelTask {
 /// processes (PIDs).
 pub struct MicroKernelScheduler {
     /// The queue of tasks ready to be executed.
-    pub task_queue: Vec<KernelTask>,
+    task_queue: VecDeque<KernelTask>,
     /// The PID of the task currently running on the simulated CPU.
     pub current_pid: Option<u32>,
     /// The default time slice granted to each task.
@@ -156,12 +157,23 @@ impl MicroKernelScheduler {
     #[must_use]
     pub fn new(time_slice: u32) -> Self {
         Self {
-            task_queue: Vec::new(),
+            task_queue: VecDeque::new(),
             current_pid: None,
             time_slice,
             context_switches: 0,
             total_uptime_ticks: 0,
         }
+    }
+
+    /// Adds a task to the scheduler's ready queue.
+    pub fn add_task(&mut self, task: KernelTask) {
+        self.task_queue.push_back(task);
+    }
+
+    /// Returns the number of tasks in the ready queue.
+    #[must_use]
+    pub fn task_count(&self) -> usize {
+        self.task_queue.len()
     }
 
     /// Simulates a Context Switch between tasks.
@@ -173,17 +185,13 @@ impl MicroKernelScheduler {
     /// # Errors
     /// Returns `FailureKind::SystemError` if the ready queue is empty.
     pub fn context_switch(&mut self) -> KernelResult<u32> {
-        if self.task_queue.is_empty() {
-            return Err(FailureKind::SystemError {
-                code: 801,
-                message: "Scheduler Ready Queue Exhaustion: No tasks to run".to_string(),
-            });
-        }
-
         self.context_switches = self.context_switches.wrapping_add(1);
 
         // Strategy: Round-Robin (Pop from front, push to back)
-        let mut next_task = self.task_queue.remove(0);
+        let mut next_task = self.task_queue.pop_front().ok_or(FailureKind::SystemError {
+            code: 801,
+            message: "Scheduler Ready Queue Exhaustion: No tasks to run".to_string(),
+        })?;
 
         // Update state to Running
         next_task.state = TaskState::Running;
@@ -193,7 +201,7 @@ impl MicroKernelScheduler {
         self.current_pid = Some(pid);
 
         // Push it back to the queue (simulating it still being "live")
-        self.task_queue.push(next_task);
+        self.task_queue.push_back(next_task);
 
         Ok(pid)
     }
