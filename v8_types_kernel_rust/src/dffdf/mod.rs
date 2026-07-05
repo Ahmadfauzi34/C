@@ -21,7 +21,7 @@
 //! - **Wasm (WSM)**: WebAssembly specific validation or execution errors.
 //! - **Garbage Collection (GC)**: Errors during memory reclamation cycles.
 
-use std::fmt;
+use std::fmt::{self, Write};
 
 /// Represents the various types of failures that can occur within the kernel.
 #[derive(Debug, Clone, PartialEq)]
@@ -105,7 +105,7 @@ pub enum FailureKind {
         pattern: String,
         trace_length: usize,
     },
-    /// Contradiction in HoTT path identity.
+    /// Contradiction in `HoTT` path identity.
     PathContradiction {
         start: String,
         end: String,
@@ -324,9 +324,9 @@ impl DiagnosticReport {
     pub fn summarize(&self) -> String {
         let mut report = String::new();
         report.push_str("--- ENGINE DIAGNOSTIC SUMMARY ---\n");
-        report.push_str(&format!("Session:   {}\n", self.session_id));
-        report.push_str(&format!("Timestamp: {}\n", self.timestamp));
-        report.push_str(&format!("Total Failures: {}\n", self.failures.len()));
+        let _ = writeln!(report, "Session:   {}", self.session_id);
+        let _ = writeln!(report, "Timestamp: {}", self.timestamp);
+        let _ = writeln!(report, "Total Failures: {}", self.failures.len());
         report
     }
 }

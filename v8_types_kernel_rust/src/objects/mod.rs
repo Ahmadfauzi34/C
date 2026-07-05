@@ -42,6 +42,9 @@ pub struct JSObject {
 
 impl JSObject {
     /// Creates a new `JSObject` in the given heap.
+    ///
+    /// # Errors
+    /// Returns `FailureKind::HeapExhausted` if the heap is full.
     pub fn new(heap: &mut Heap, map: MapIndex) -> KernelResult<Self> {
         let index = heap.allocate_object(InstanceType::JSObject, map)?;
         Ok(Self { index })
@@ -52,11 +55,17 @@ impl JSObject {
     /// # Safety and Diagnostics
     /// This method ensures that the slot is within the allocated bounds for
     /// the object's properties.
+    ///
+    /// # Errors
+    /// Returns `FailureKind::OutOfBounds` if the index is out of bounds.
     pub fn set_property(&self, heap: &mut Heap, slot: u32, value: TaggedAddress) -> KernelResult<()> {
         heap.set_property(self.index, slot, value)
     }
 
     /// Gets a property value from a specific slot.
+    ///
+    /// # Errors
+    /// Returns `FailureKind::OutOfBounds` if the index or slot is out of bounds.
     pub fn get_property(&self, heap: &Heap, slot: u32) -> KernelResult<TaggedAddress> {
         heap.get_property(self.index, slot)
     }
@@ -115,6 +124,10 @@ impl JSPromise {
     pub const FLAGS_SLOT: u32 = 3;
 
     /// Creates a new `JSPromise` in the Pending state.
+    ///
+    /// # Errors
+    /// Returns `FailureKind::HeapExhausted` if the heap is full.
+    /// Returns `FailureKind::OutOfBounds` or `FailureKind::SystemError` during initialization.
     pub fn new(heap: &mut Heap, map: MapIndex) -> KernelResult<Self> {
         let index = heap.allocate_object(InstanceType::JSPromise, map)?;
 
@@ -136,6 +149,11 @@ impl JSPromise {
     /// # Fail-Fast Diagnostics
     /// This method enforces the "once-settled, always-settled" rule. Any attempt
     /// to transition a non-Pending promise will trigger a `FailureKind::InvalidStateTransition`.
+    ///
+    /// # Errors
+    /// Returns `FailureKind::SystemError` if corrupt state is detected.
+    /// Returns `FailureKind::InvalidStateTransition` if the promise is already settled.
+    /// Returns `FailureKind::OutOfBounds` or `FailureKind::SystemError` during settlement.
     pub fn settle(&self, heap: &mut Heap, to: PromiseState, result: TaggedAddress) -> KernelResult<()> {
         let current_state_tagged = heap.get_property(self.index, Self::STATE_SLOT)?;
 
@@ -149,8 +167,8 @@ impl JSPromise {
         if current_state != PromiseState::Pending {
             return Err(FailureKind::InvalidStateTransition {
                 object_id: self.index.0,
-                from: self.state_name(current_state),
-                to: self.state_name(to),
+                from: Self::state_name(current_state),
+                to: Self::state_name(to),
             });
         }
 
@@ -162,6 +180,10 @@ impl JSPromise {
     }
 
     /// Returns the current state of the promise.
+    ///
+    /// # Errors
+    /// Returns `FailureKind::SystemError` if invalid state is in memory.
+    /// Returns `FailureKind::OutOfBounds` if the index is out of bounds.
     pub fn get_state(&self, heap: &Heap) -> KernelResult<PromiseState> {
         let tagged = heap.get_property(self.index, Self::STATE_SLOT)?;
         PromiseState::from_u8(tagged.0 as u8).ok_or(FailureKind::SystemError {
@@ -170,7 +192,7 @@ impl JSPromise {
         })
     }
 
-    fn state_name(&self, state: PromiseState) -> &'static str {
+    fn state_name(state: PromiseState) -> &'static str {
         match state {
             PromiseState::Pending => "Pending",
             PromiseState::Fulfilled => "Fulfilled",
@@ -193,6 +215,10 @@ pub struct JSArray {
 
 impl JSArray {
     /// Creates a new `JSArray`.
+    ///
+    /// # Errors
+    /// Returns `FailureKind::HeapExhausted` if the heap is full.
+    /// Returns `FailureKind::OutOfBounds` or `FailureKind::SystemError` during initialization.
     pub fn new(heap: &mut Heap, map: MapIndex) -> KernelResult<Self> {
         let index = heap.allocate_object(InstanceType::JSArray, map)?;
         // Initial length property (stored in property slot 0)
@@ -205,6 +231,10 @@ impl JSArray {
     /// # Memory Layout
     /// In the `SoA` model, elements are stored in a separate flat buffer.
     /// Pushing an element updates both the elements buffer and the 'length' property.
+    ///
+    /// # Errors
+    /// Returns `FailureKind::OutOfBounds` if the index is out of bounds.
+    /// Returns `FailureKind::SystemError` if elements relocation is required.
     pub fn push(&self, heap: &mut Heap, value: TaggedAddress) -> KernelResult<()> {
         let idx = self.index.0 as usize;
         let offset = *heap.elements_offsets.get(idx).ok_or(FailureKind::OutOfBounds {
@@ -267,6 +297,10 @@ impl JSString {
     pub const HASH_SLOT: u32 = 1;
 
     /// Creates a new simulated `JSString`.
+    ///
+    /// # Errors
+    /// Returns `FailureKind::HeapExhausted` if the heap is full.
+    /// Returns `FailureKind::OutOfBounds` or `FailureKind::SystemError` during initialization.
     pub fn new(heap: &mut Heap, map: MapIndex, length: u32, hash: u32) -> KernelResult<Self> {
         let index = heap.allocate_object(InstanceType::String, map)?;
         heap.set_property(index, Self::LENGTH_SLOT, TaggedAddress((length as usize).wrapping_shl(1)))?;
@@ -275,6 +309,9 @@ impl JSString {
     }
 
     /// Returns the length of the string as a native u32.
+    ///
+    /// # Errors
+    /// Returns `FailureKind::OutOfBounds` if the index or slot is out of bounds.
     pub fn length(&self, heap: &Heap) -> KernelResult<u32> {
         let tagged = heap.get_property(self.index, Self::LENGTH_SLOT)?;
         Ok((tagged.0 >> 1) as u32)
@@ -298,6 +335,11 @@ impl SharedFunctionInfo {
     pub const NAME_OR_SCOPE_INFO_SLOT: u32 = 1;
     pub const FORMAL_PARAMETER_COUNT_SLOT: u32 = 2;
 
+    /// Creates a new `SharedFunctionInfo`.
+    ///
+    /// # Errors
+    /// Returns `FailureKind::HeapExhausted` if the heap is full.
+    /// Returns `FailureKind::OutOfBounds` or `FailureKind::SystemError` during initialization.
     pub fn new(heap: &mut Heap, map: MapIndex, param_count: u32) -> KernelResult<Self> {
         let index = heap.allocate_object(InstanceType::SharedFunctionInfo, map)?;
         heap.set_property(index, Self::FORMAL_PARAMETER_COUNT_SLOT, TaggedAddress((param_count as usize).wrapping_shl(1)))?;
@@ -317,12 +359,21 @@ impl FeedbackVector {
     pub const INVOCATION_COUNT_SLOT: u32 = 0;
     pub const OPTIMIZED_CODE_SLOT: u32 = 1;
 
+    /// Creates a new `FeedbackVector`.
+    ///
+    /// # Errors
+    /// Returns `FailureKind::HeapExhausted` if the heap is full.
+    /// Returns `FailureKind::OutOfBounds` or `FailureKind::SystemError` during initialization.
     pub fn new(heap: &mut Heap, map: MapIndex) -> KernelResult<Self> {
         let index = heap.allocate_object(InstanceType::FeedbackVector, map)?;
         heap.set_property(index, Self::INVOCATION_COUNT_SLOT, TaggedAddress(0))?;
         Ok(Self { index })
     }
 
+    /// Increments the invocation count in the feedback vector.
+    ///
+    /// # Errors
+    /// Returns `FailureKind::OutOfBounds` if the index or slot is out of bounds.
     pub fn increment_invocation_count(&self, heap: &mut Heap) -> KernelResult<()> {
         let current = heap.get_property(self.index, Self::INVOCATION_COUNT_SLOT)?;
         let next = (current.0.wrapping_shr(1)).wrapping_add(1);
@@ -343,6 +394,11 @@ impl JSFunction {
     pub const CONTEXT_SLOT: u32 = 1;
     pub const FEEDBACK_VECTOR_SLOT: u32 = 2;
 
+    /// Creates a new `JSFunction`.
+    ///
+    /// # Errors
+    /// Returns `FailureKind::HeapExhausted` if the heap is full.
+    /// Returns `FailureKind::OutOfBounds` or `FailureKind::SystemError` during initialization.
     pub fn new(
         heap: &mut Heap,
         map: MapIndex,
@@ -372,6 +428,11 @@ impl AccessorInfo {
     pub const SETTER_SLOT: u32 = 1;
     pub const NAME_SLOT: u32 = 2;
 
+    /// Creates a new `AccessorInfo`.
+    ///
+    /// # Errors
+    /// Returns `FailureKind::HeapExhausted` if the heap is full.
+    /// Returns `FailureKind::OutOfBounds` or `FailureKind::SystemError` during initialization.
     pub fn new(heap: &mut Heap, map: MapIndex, name: TaggedAddress) -> KernelResult<Self> {
         let index = heap.allocate_object(InstanceType::JSObject, map)?;
         heap.set_property(index, Self::NAME_SLOT, name)?;
@@ -390,6 +451,11 @@ impl JSProxy {
     pub const TARGET_SLOT: u32 = 0;
     pub const HANDLER_SLOT: u32 = 1;
 
+    /// Creates a new `JSProxy`.
+    ///
+    /// # Errors
+    /// Returns `FailureKind::HeapExhausted` if the heap is full.
+    /// Returns `FailureKind::OutOfBounds` or `FailureKind::SystemError` during initialization.
     pub fn new(heap: &mut Heap, map: MapIndex, target: TaggedAddress, handler: TaggedAddress) -> KernelResult<Self> {
         let index = heap.allocate_object(InstanceType::JSObject, map)?;
         heap.set_property(index, Self::TARGET_SLOT, target)?;
@@ -411,6 +477,11 @@ impl JSMap {
     pub const SIZE_SLOT: u32 = 0;
     pub const TABLE_SLOT: u32 = 1;
 
+    /// Creates a new `JSMap`.
+    ///
+    /// # Errors
+    /// Returns `FailureKind::HeapExhausted` if the heap is full.
+    /// Returns `FailureKind::OutOfBounds` or `FailureKind::SystemError` during initialization.
     pub fn new(heap: &mut Heap, map: MapIndex) -> KernelResult<Self> {
         let index = heap.allocate_object(InstanceType::JSObject, map)?;
         heap.set_property(index, Self::SIZE_SLOT, TaggedAddress(0))?;
@@ -427,6 +498,11 @@ impl JSSet {
     pub const SIZE_SLOT: u32 = 0;
     pub const TABLE_SLOT: u32 = 1;
 
+    /// Creates a new `JSSet`.
+    ///
+    /// # Errors
+    /// Returns `FailureKind::HeapExhausted` if the heap is full.
+    /// Returns `FailureKind::OutOfBounds` or `FailureKind::SystemError` during initialization.
     pub fn new(heap: &mut Heap, map: MapIndex) -> KernelResult<Self> {
         let index = heap.allocate_object(InstanceType::JSObject, map)?;
         heap.set_property(index, Self::SIZE_SLOT, TaggedAddress(0))?;
@@ -452,6 +528,9 @@ pub mod promise_reactions {
     ///
     /// In a real engine, this would manage a linked list of `PromiseReaction`
     /// objects stored in the heap.
+    ///
+    /// # Errors
+    /// Always returns `Ok` in this simplified simulation.
     pub fn add_reaction(
         _heap: &mut Heap,
         _promise: &JSPromise,
@@ -487,6 +566,11 @@ impl JSContext {
     pub const GLOBAL_OBJECT_SLOT: u32 = 0;
     pub const SECURITY_TOKEN_SLOT: u32 = 1;
 
+    /// Creates a new `JSContext`.
+    ///
+    /// # Errors
+    /// Returns `FailureKind::HeapExhausted` if the heap is full.
+    /// Returns `FailureKind::OutOfBounds` or `FailureKind::SystemError` during initialization.
     pub fn new(heap: &mut Heap, map: MapIndex, global: TaggedAddress) -> KernelResult<Self> {
         let index = heap.allocate_object(InstanceType::JSObject, map)?;
         heap.set_property(index, Self::GLOBAL_OBJECT_SLOT, global)?;
@@ -502,6 +586,10 @@ pub struct JSGlobalProxy {
 impl JSGlobalProxy {
     pub const NATIVE_CONTEXT_SLOT: u32 = 0;
 
+    /// Creates a new `JSGlobalProxy`.
+    ///
+    /// # Errors
+    /// Returns `FailureKind::HeapExhausted` if the heap is full.
     pub fn new(heap: &mut Heap, map: MapIndex) -> KernelResult<Self> {
         let index = heap.allocate_object(InstanceType::JSObject, map)?;
         Ok(Self { index })
@@ -536,6 +624,11 @@ pub mod typed_arrays {
         pub const BYTE_LENGTH_SLOT: u32 = 2;
         pub const LENGTH_SLOT: u32 = 3;
 
+        /// Creates a new `JSTypedArray`.
+        ///
+        /// # Errors
+        /// Returns `FailureKind::HeapExhausted` if the heap is full.
+        /// Returns `FailureKind::OutOfBounds` or `FailureKind::SystemError` during initialization.
         pub fn new(heap: &mut Heap, map: MapIndex, buffer: TaggedAddress) -> KernelResult<Self> {
             let index = heap.allocate_object(InstanceType::JSArray, map)?;
             heap.set_property(index, Self::BUFFER_SLOT, buffer)?;
@@ -554,6 +647,11 @@ impl JSDataView {
     pub const BYTE_OFFSET_SLOT: u32 = 1;
     pub const BYTE_LENGTH_SLOT: u32 = 2;
 
+    /// Creates a new `JSDataView`.
+    ///
+    /// # Errors
+    /// Returns `FailureKind::HeapExhausted` if the heap is full.
+    /// Returns `FailureKind::OutOfBounds` or `FailureKind::SystemError` during initialization.
     pub fn new(heap: &mut Heap, map: MapIndex, buffer: TaggedAddress) -> KernelResult<Self> {
         let index = heap.allocate_object(InstanceType::JSObject, map)?;
         heap.set_property(index, Self::BUFFER_SLOT, buffer)?;
@@ -569,10 +667,17 @@ pub struct JSDate {
 impl JSDate {
     pub const VALUE_SLOT: u32 = 0;
 
+    /// Creates a new `JSDate`.
+    ///
+    /// # Errors
+    /// Returns `FailureKind::HeapExhausted` if the heap is full.
+    /// Returns `FailureKind::OutOfBounds` or `FailureKind::SystemError` during initialization.
     pub fn new(heap: &mut Heap, map: MapIndex, timestamp: f64) -> KernelResult<Self> {
         let index = heap.allocate_object(InstanceType::JSObject, map)?;
         // Store timestamp as a "Boxed Double" (Simulated)
-        heap.set_property(index, Self::VALUE_SLOT, TaggedAddress(timestamp as usize))?;
+        #[allow(clippy::cast_sign_loss)]
+        let ts_val = timestamp as usize;
+        heap.set_property(index, Self::VALUE_SLOT, TaggedAddress(ts_val))?;
         Ok(Self { index })
     }
 }
@@ -587,6 +692,11 @@ impl JSRegExp {
     pub const FLAGS_SLOT: u32 = 1;
     pub const LAST_INDEX_SLOT: u32 = 2;
 
+    /// Creates a new `JSRegExp`.
+    ///
+    /// # Errors
+    /// Returns `FailureKind::HeapExhausted` if the heap is full.
+    /// Returns `FailureKind::OutOfBounds` or `FailureKind::SystemError` during initialization.
     pub fn new(heap: &mut Heap, map: MapIndex, source: TaggedAddress) -> KernelResult<Self> {
         let index = heap.allocate_object(InstanceType::JSObject, map)?;
         heap.set_property(index, Self::SOURCE_SLOT, source)?;
@@ -600,6 +710,10 @@ pub struct JSAsyncFunction {
 }
 
 impl JSAsyncFunction {
+    /// Creates a new `JSAsyncFunction`.
+    ///
+    /// # Errors
+    /// Returns `FailureKind::HeapExhausted` if the heap is full.
     pub fn new(heap: &mut Heap, map: MapIndex) -> KernelResult<Self> {
         let index = heap.allocate_object(InstanceType::JSObject, map)?;
         Ok(Self { index })
@@ -619,6 +733,11 @@ impl JSGeneratorObject {
     pub const RESUME_MODE_SLOT: u32 = 4;
     pub const CONTINUATION_SLOT: u32 = 5;
 
+    /// Creates a new `JSGeneratorObject`.
+    ///
+    /// # Errors
+    /// Returns `FailureKind::HeapExhausted` if the heap is full.
+    /// Returns `FailureKind::OutOfBounds` or `FailureKind::SystemError` during initialization.
     pub fn new(heap: &mut Heap, map: MapIndex, function: TaggedAddress) -> KernelResult<Self> {
         let index = heap.allocate_object(InstanceType::JSObject, map)?;
         heap.set_property(index, Self::FUNCTION_SLOT, function)?;
@@ -635,6 +754,11 @@ impl JSIteratorResult {
     pub const VALUE_SLOT: u32 = 0;
     pub const DONE_SLOT: u32 = 1;
 
+    /// Creates a new `JSIteratorResult`.
+    ///
+    /// # Errors
+    /// Returns `FailureKind::HeapExhausted` if the heap is full.
+    /// Returns `FailureKind::OutOfBounds` or `FailureKind::SystemError` during initialization.
     pub fn new(heap: &mut Heap, map: MapIndex, value: TaggedAddress, done: bool) -> KernelResult<Self> {
         let index = heap.allocate_object(InstanceType::JSObject, map)?;
         heap.set_property(index, Self::VALUE_SLOT, value)?;
@@ -702,6 +826,10 @@ pub struct PrototypeChain;
 impl PrototypeChain {
     pub const PROTO_SLOT: u32 = 0; // Simplified for this simulation
 
+    /// Performs a property lookup in the prototype chain.
+    ///
+    /// # Errors
+    /// Returns `FailureKind` if an error occurs during property access.
     pub fn lookup(heap: &Heap, start_obj: ObjectIndex, slot: u32) -> KernelResult<Option<TaggedAddress>> {
         let current_obj = start_obj;
         // Optimization: Limit depth to prevent infinite loops in corrupt heaps.
@@ -765,6 +893,10 @@ pub struct JSReceiver {
 }
 
 impl JSReceiver {
+    /// Returns the prototype of the receiver.
+    ///
+    /// # Errors
+    /// Always returns `Ok` in this simplified simulation.
     pub fn get_prototype(&self, _heap: &Heap) -> KernelResult<TaggedAddress> {
         // Implementation for retrieving the prototype.
         Ok(TaggedAddress::null())
@@ -784,6 +916,11 @@ impl JSBoundFunction {
     pub const BOUND_THIS_SLOT: u32 = 1;
     pub const BOUND_ARGUMENTS_SLOT: u32 = 2;
 
+    /// Creates a new `JSBoundFunction`.
+    ///
+    /// # Errors
+    /// Returns `FailureKind::HeapExhausted` if the heap is full.
+    /// Returns `FailureKind::OutOfBounds` or `FailureKind::SystemError` during initialization.
     pub fn new(heap: &mut Heap, map: MapIndex, target: TaggedAddress) -> KernelResult<Self> {
         let index = heap.allocate_object(InstanceType::JSObject, map)?;
         heap.set_property(index, Self::BOUND_TARGET_FUNCTION_SLOT, target)?;

@@ -27,21 +27,22 @@
 use crate::KernelResult;
 use crate::dffdf::FailureKind;
 use crate::dffdf::CircuitBreaker;
+use std::collections::VecDeque;
 
 /// Represents an atomic sequence of kernel operations.
 ///
-/// In this simulation, an AtomicBatch acts as a "System Call" or a
+/// In this simulation, an `AtomicBatch` acts as a "System Call" or a
 /// sequence of kernel-level instructions that must execute without
 /// interruption to maintain system integrity.
 pub struct AtomicBatch {
     pub id: u64,
-    /// Operations are boxed closures that return a KernelResult.
+    /// Operations are boxed closures that return a `KernelResult`.
     pub operations: Vec<Box<dyn FnOnce() -> KernelResult<()>>>,
 }
 
 /// Orchestrates batches of kernel work with safety guardrails.
 ///
-/// The MacroBatcher ensures that the kernel does not enter a state of
+/// The `MacroBatcher` ensures that the kernel does not enter a state of
 /// continuous failure (thrashing) by using a circuit breaker.
 pub struct MacroBatcher {
     pub circuit_breaker: CircuitBreaker,
@@ -50,7 +51,7 @@ pub struct MacroBatcher {
 }
 
 impl MacroBatcher {
-    /// Creates a new MacroBatcher with diagnostic monitoring.
+    /// Creates a new `MacroBatcher` with diagnostic monitoring.
     #[must_use]
     pub fn new() -> Self {
         Self {
@@ -65,6 +66,10 @@ impl MacroBatcher {
     /// # Fail-Fast Diagnostics
     /// If the operation fails, it records the failure in the circuit breaker.
     /// If the error rate exceeds 10% after 5 operations, the breaker trips.
+    ///
+    /// # Errors
+    /// Returns `FailureKind::CircuitBreakerTripped` if error rate exceeds threshold.
+    /// Returns `FailureKind::BatchFailure` if an operation fails.
     pub fn submit(&mut self, batch: AtomicBatch) -> KernelResult<()> {
         if self.circuit_breaker.is_tripped() {
             return Err(FailureKind::CircuitBreakerTripped {
@@ -140,7 +145,7 @@ pub struct KernelTask {
 /// processes (PIDs).
 pub struct MicroKernelScheduler {
     /// The queue of tasks ready to be executed.
-    pub task_queue: Vec<KernelTask>,
+    task_queue: VecDeque<KernelTask>,
     /// The PID of the task currently running on the simulated CPU.
     pub current_pid: Option<u32>,
     /// The default time slice granted to each task.
@@ -156,12 +161,23 @@ impl MicroKernelScheduler {
     #[must_use]
     pub fn new(time_slice: u32) -> Self {
         Self {
-            task_queue: Vec::new(),
+            task_queue: VecDeque::new(),
             current_pid: None,
             time_slice,
             context_switches: 0,
             total_uptime_ticks: 0,
         }
+    }
+
+    /// Adds a task to the scheduler's ready queue.
+    pub fn add_task(&mut self, task: KernelTask) {
+        self.task_queue.push_back(task);
+    }
+
+    /// Returns the number of tasks in the ready queue.
+    #[must_use]
+    pub fn task_count(&self) -> usize {
+        self.task_queue.len()
     }
 
     /// Simulates a Context Switch between tasks.
@@ -173,17 +189,13 @@ impl MicroKernelScheduler {
     /// # Errors
     /// Returns `FailureKind::SystemError` if the ready queue is empty.
     pub fn context_switch(&mut self) -> KernelResult<u32> {
-        if self.task_queue.is_empty() {
-            return Err(FailureKind::SystemError {
-                code: 801,
-                message: "Scheduler Ready Queue Exhaustion: No tasks to run".to_string(),
-            });
-        }
-
         self.context_switches = self.context_switches.wrapping_add(1);
 
         // Strategy: Round-Robin (Pop from front, push to back)
-        let mut next_task = self.task_queue.remove(0);
+        let mut next_task = self.task_queue.pop_front().ok_or(FailureKind::SystemError {
+            code: 801,
+            message: "Scheduler Ready Queue Exhaustion: No tasks to run".to_string(),
+        })?;
 
         // Update state to Running
         next_task.state = TaskState::Running;
@@ -193,7 +205,7 @@ impl MicroKernelScheduler {
         self.current_pid = Some(pid);
 
         // Push it back to the queue (simulating it still being "live")
-        self.task_queue.push(next_task);
+        self.task_queue.push_back(next_task);
 
         Ok(pid)
     }
@@ -206,7 +218,7 @@ impl MicroKernelScheduler {
         self.total_uptime_ticks = self.total_uptime_ticks.wrapping_add(1);
 
         if let Some(pid) = self.current_pid {
-            println!("[KERNEL] Clock Interrupt: PID {} quantum expired. Triggering preemption.", pid);
+            println!("[KERNEL] Clock Interrupt: PID {pid} quantum expired. Triggering preemption.");
             let _ = self.context_switch();
         }
     }
@@ -313,11 +325,11 @@ impl Default for JobMetrics {
 // DETAILED ARCHITECTURAL NOTES FOR KERNEL DEVELOPERS
 // -----------------------------------------------------------------------------
 
-/// Guide to Context Switching on x86_64 and RISC-V.
+/// Guide to Context Switching on `x86_64` and `RISC-V`.
 ///
 /// ## The Context Switching Process
 /// 1. **Save CPU State**: All general-purpose registers (RAX, RBX, etc. on x86;
-///    x1-x31 on RISC-V) are pushed onto the current task's stack.
+///    x1-x31 on `RISC-V`) are pushed onto the current task's stack.
 /// 2. **Switch Stacks**: The kernel changes the RSP/sp register to point to
 ///    the stack of the next task.
 /// 3. **Restore CPU State**: The registers of the next task are popped from

@@ -52,6 +52,7 @@ pub struct NewSpace {
 }
 
 impl NewSpace {
+    #[must_use]
     pub fn new(capacity: usize) -> Self {
         Self {
             from_space_base: 0x1000_0000,
@@ -78,6 +79,7 @@ pub struct OldSpace {
 }
 
 impl OldSpace {
+    #[must_use]
     pub fn new(capacity: usize) -> Self {
         Self {
             base: 0x4000_0000,
@@ -105,6 +107,7 @@ pub enum IncrementalMarkingState {
 }
 
 impl OrinocoGC {
+    #[must_use]
     pub fn new() -> Self {
         Self {
             young_gen: NewSpace::new(1024 * 1024 * 16), // 16MB
@@ -159,7 +162,8 @@ impl OrinocoGC {
     // ========================================================================
 
     /// Proves that the heap state after GC is equivalent to the state before GC.
-    /// In HoTT terms, GC is a path p : State_pre = State_post.
+    /// In `HoTT` terms, GC is a path p : `State_pre` = `State_post`.
+    #[must_use]
     pub fn prove_gc_integrity(&self, result: &GCResult) -> PathP<GCKind> {
         PathP {
             start: result.kind,

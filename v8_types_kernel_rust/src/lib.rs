@@ -12,10 +12,10 @@
 
 // 2. PERFORMANCE & MEMORY EFFICIENCY
 #![deny(clippy::perf)]
-#![warn(clippy::inline_always)]
+#![allow(clippy::inline_always)]
 // Menolak alokasi heap tersembunyi (misal penciptaan Vec/Box di jalur cepat)
 #![warn(clippy::alloc_instead_of_core)]
-#![warn(clippy::std_instead_of_alloc)]
+#![allow(clippy::std_instead_of_alloc)]
 
 // 3. DFFDF COMPLIANCE & PANIC ELIMINATION
 #![deny(clippy::unwrap_used)]

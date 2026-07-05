@@ -222,14 +222,14 @@ pub mod source_encoding {
     /// Detects the encoding of a script based on Byte Order Marks (BOM).
     #[must_use]
     pub fn detect_encoding(data: &[u8]) -> Encoding {
-        if data.len() >= 3 && *data.get(0).unwrap_or(&0) == 0xEF && *data.get(1).unwrap_or(&0) == 0xBB && *data.get(2).unwrap_or(&0) == 0xBF {
+        if data.len() >= 3 && *data.first().unwrap_or(&0) == 0xEF && *data.get(1).unwrap_or(&0) == 0xBB && *data.get(2).unwrap_or(&0) == 0xBF {
             return Encoding::BomUtf8;
         }
         if data.len() >= 2 {
-            if *data.get(0).unwrap_or(&0) == 0xFF && *data.get(1).unwrap_or(&0) == 0xFE {
+            if *data.first().unwrap_or(&0) == 0xFF && *data.get(1).unwrap_or(&0) == 0xFE {
                 return Encoding::BomUtf16Le;
             }
-            if *data.get(0).unwrap_or(&0) == 0xFE && *data.get(1).unwrap_or(&0) == 0xFF {
+            if *data.first().unwrap_or(&0) == 0xFE && *data.get(1).unwrap_or(&0) == 0xFF {
                 return Encoding::BomUtf16Be;
             }
         }

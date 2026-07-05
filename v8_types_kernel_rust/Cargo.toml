@@ -13,6 +13,10 @@ name = "generate_ts"
 path = "scripts/generate_ts.rs"
 
 [[bench]]
+name = "scheduler_bench"
+harness = false
+
+[[bench]]
 name = "amb_benchmark"
 harness = false
 
