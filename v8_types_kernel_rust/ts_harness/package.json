@@ -1,0 +1,12 @@
+{
+  "name": "ts_harness",
+  "version": "1.0.0",
+  "description": "Test harness for V8 Types Kernel",
+  "main": "harness.ts",
+  "type": "module",
+  "dependencies": {
+    "typescript": "^5.4.5",
+    "ts-node": "^10.9.2",
+    "@types/node": "^20.12.7"
+  }
+}
