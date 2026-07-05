@@ -86,7 +86,9 @@ impl ScriptStreamingJob {
             StreamingState::Error => return Ok(false),
         }
 
-        self.position = (self.position.wrapping_add(chunk_size)).min(self.source_data.len());
+        // Use saturating_add to prevent position from wrapping around,
+        // ensuring the position only moves forward until the end of source_data.
+        self.position = self.position.saturating_add(chunk_size).min(self.source_data.len());
 
         if self.position >= self.source_data.len() && self.state != StreamingState::Finalizing {
              self.state = StreamingState::Finalizing;
@@ -139,15 +141,23 @@ impl WasmStreamingJob {
             });
         }
 
-        self.received_bytes = self.received_bytes.wrapping_add(count);
-        if self.received_bytes > self.total_bytes {
+        // Use checked_add to prevent integer overflow which could bypass
+        // the total_bytes limit check.
+        let new_received_bytes = self.received_bytes.checked_add(count).ok_or(FailureKind::OutOfBounds {
+            index: usize::MAX,
+            limit: self.total_bytes,
+            context: "WasmStreamingJob::on_bytes_received (overflow detected)",
+        })?;
+
+        if new_received_bytes > self.total_bytes {
             return Err(FailureKind::OutOfBounds {
-                index: self.received_bytes,
+                index: new_received_bytes,
                 limit: self.total_bytes,
-                context: "WasmStreamingJob::on_bytes_received (overflow check)",
+                context: "WasmStreamingJob::on_bytes_received (limit exceeded)",
             });
         }
 
+        self.received_bytes = new_received_bytes;
         self.sections_found = self.sections_found.wrapping_add((count.wrapping_div(500)) as u32);
 
         Ok(())
