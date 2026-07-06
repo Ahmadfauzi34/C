@@ -104,7 +104,12 @@ const DEFAULT_PATTERNS: BlockPattern[] = [
 // 4. MAIN ANALYZER CLASS (P1: Line Cache + P2: Inverted Index + P3: Structure Cache)
 // ─────────────────────────────────────────────────────────────────────────────
 
+/**
+ * Advanced Code Structure Analyzer for multi-language static analysis.
+ * Features: Stack-based block extraction, inverted word index, and surgical code reading.
+ */
 export class CodeStructureAnalyzer {
+  private readonly content: string;
   // P1: Line Cache — parsed once, reused everywhere
   private readonly lines: string[];
   private readonly lineCount: number;
@@ -127,13 +132,14 @@ export class CodeStructureAnalyzer {
   private readonly contextRange: number;
 
   constructor(
-    private readonly content: string,
+    content: string,
     options: {
       patterns?: BlockPattern[];
       contextRange?: number;
       buildIndex?: boolean;
     } = {}
   ) {
+    this.content = content;
     // P1: Parse once
     this.lines = content.split(/\r?\n/);
     this.lineCount = this.lines.length;
@@ -416,6 +422,7 @@ export class CodeStructureAnalyzer {
         frame.braceDepth += delta.brace;
         frame.bracketDepth += delta.bracket;
         frame.parenDepth += delta.paren;
+        // Generic depth tracked but not yet used to block completion
 
         if (delta.brace > 0) frame.hasOpenedBrace = true;
 
@@ -476,10 +483,11 @@ export class CodeStructureAnalyzer {
 
   /**
    * P0: Context-aware structural symbol counting
-   * Returns delta for braces, brackets, parens separately
+   * Returns delta for braces, brackets, parens separately.
+   * Tracks nested generics <>, template literals, and escaping.
    */
-  private countStructuralSymbols(line: string): { brace: number; bracket: number; paren: number } {
-    let brace = 0, bracket = 0, paren = 0;
+  private countStructuralSymbols(line: string): { brace: number; bracket: number; paren: number; generic: number } {
+    let brace = 0, bracket = 0, paren = 0, generic = 0;
     let ctx: ParseContext = ParseContext.Code;
     let escaped = false;
     let stringChar: string | null = null;
@@ -508,6 +516,8 @@ export class CodeStructureAnalyzer {
           else if (char === ']' ) { bracket--; }
           else if (char === '(' ) { paren++; }
           else if (char === ')' ) { paren--; }
+          else if (char === '<' && nextChar !== ' ' && nextChar !== '=') { generic++; }
+          else if (char === '>' && i > 0 && line[i-1] !== ' ' && line[i-1] !== '-') { generic--; }
           break;
 
         case ParseContext.String:
@@ -602,7 +612,11 @@ export class CodeStructureAnalyzer {
     return name ? this._blockMap!.get(name) : undefined;
   }
 
-  /** Search blocks with scoring */
+  /**
+   * Searches for code blocks by name or signature using relevance scoring.
+   * @param query The search term.
+   * @returns A sorted list of BlockSearchResult objects, highest relevance first.
+   */
   public searchBlocks(query: string): BlockSearchResult[] {
     const blocks = this.extractStructure();
     const results: BlockSearchResult[] = [];
@@ -628,9 +642,14 @@ export class CodeStructureAnalyzer {
       }
 
       // Boost by block type relevance
-      if (block.type === 'class') score += 5;
-      if (block.type === 'function') score += 3;
-      if (block.depth === 0) score += 2; // top-level
+      if (block.type === 'class' || block.type === 'struct' || block.type === 'interface') score += 10;
+      if (block.type === 'function') score += 5;
+      if (block.depth === 0) score += 5; // top-level
+
+      // Boost for exported/public members
+      if (block.signature.includes('export ') || block.signature.includes('pub ')) {
+        score += 20;
+      }
 
       results.push({ block, score, matchType });
     }
@@ -822,9 +841,18 @@ export const LANGUAGE_PATTERNS: Record<string, BlockPattern[]> = {
   rust: [
     { type: 'import', regex: /^\s*use\s+/, nameGroup: 0, canNest: false, requiresBrace: false, priority: 100 },
     { type: 'comment', regex: /^\s*(?:\/\/|\/\*|\*)/, nameGroup: 0, canNest: false, requiresBrace: false, priority: 90 },
-    { type: 'function', regex: /^\s*(?:pub\s+)?fn\s+(\w+)/, nameGroup: 1, canNest: true, requiresBrace: true, priority: 50 },
-    { type: 'struct', regex: /^\s*(?:pub\s+)?struct\s+(\w+)/, nameGroup: 1, canNest: false, requiresBrace: true, priority: 60 },
-    { type: 'enum', regex: /^\s*(?:pub\s+)?enum\s+(\w+)/, nameGroup: 1, canNest: false, requiresBrace: true, priority: 60 },
+    { type: 'type', regex: /^\s*(?:pub(?:\([^)]*\))?\s+)?type\s+(\w+)/, nameGroup: 1, canNest: false, requiresBrace: false, priority: 80 },
+    { type: 'struct', regex: /^\s*(?:pub(?:\([^)]*\))?\s+)?struct\s+(\w+)/, nameGroup: 1, canNest: false, requiresBrace: true, priority: 70 },
+    { type: 'enum', regex: /^\s*(?:pub(?:\([^)]*\))?\s+)?enum\s+(\w+)/, nameGroup: 1, canNest: false, requiresBrace: true, priority: 70 },
+    { type: 'interface', regex: /^\s*(?:pub(?:\([^)]*\))?\s+)?trait\s+(\w+)/, nameGroup: 1, canNest: true, requiresBrace: true, priority: 60 },
+    { type: 'class', regex: /^\s*(?:pub(?:\([^)]*\))?\s+)?impl(?:\s+.*?\s+for)?\s+(\w+)/, nameGroup: 1, canNest: true, requiresBrace: true, priority: 60 },
+    { type: 'function', regex: /^\s*(?:pub(?:\([^)]*\))?\s+)?(?:async\s+)?fn\s+(\w+)/, nameGroup: 1, canNest: true, requiresBrace: true, priority: 50 },
+  ],
+  go: [
+    { type: 'import', regex: /^\s*import\s+/, nameGroup: 0, canNest: false, requiresBrace: false, priority: 100 },
+    { type: 'comment', regex: /^\s*(?:\/\/|\/\*|\*)/, nameGroup: 0, canNest: false, requiresBrace: false, priority: 90 },
+    { type: 'type', regex: /^\s*type\s+(\w+)\s+(?:struct|interface|func|map|chan|\[)/, nameGroup: 1, canNest: true, requiresBrace: true, priority: 80 },
+    { type: 'function', regex: /^\s*func\s+(?:\([^)]*\)\s+)?(\w+)\s*\(/, nameGroup: 1, canNest: true, requiresBrace: true, priority: 50 },
   ],
 };
 

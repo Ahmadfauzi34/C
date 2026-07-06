@@ -49,8 +49,23 @@ async function runHarness() {
   const functions = rustAnalyzer.getBlocksByType('function');
   console.log(`Found ${functions.length} functions.`);
 
+  const traits = rustAnalyzer.getBlocksByType('interface');
+  console.log(`Found ${traits.length} traits.`);
+
+  const impls = rustAnalyzer.getBlocksByType('class');
+  console.log(`Found ${impls.length} impl blocks.`);
+
+  // Sample search relevance test
+  console.log('\n--- Phase 3: Search Relevance Test ---');
+  const searchResults = rustAnalyzer.searchBlocks('new');
+  console.log(`Found ${searchResults.length} blocks matching "new".`);
+  if (searchResults.length > 0) {
+    console.log(`Top match: ${searchResults[0].block.name} (Score: ${searchResults[0].score}, Type: ${searchResults[0].block.type})`);
+    console.log(`Signature: ${searchResults[0].block.signature}`);
+  }
+
   // Sample surgical read
-  console.log('\n--- Phase 3: Surgical Read Test ---');
+  console.log('\n--- Phase 4: Surgical Read Test ---');
   const snippets = rustAnalyzer.surgicalRead('pub fn new', 2);
   console.log(`Found ${snippets.length} instances of "pub fn new".`);
   if (snippets.length > 0) {
@@ -62,6 +77,6 @@ async function runHarness() {
 }
 
 runHarness().catch(err => {
-  console.error('Harness failed:', err);
+  console.error('Harness failed:', JSON.stringify(err, Object.getOwnPropertyNames(err), 2));
   process.exit(1);
 });
