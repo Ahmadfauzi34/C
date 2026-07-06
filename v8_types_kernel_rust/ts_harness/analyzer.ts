@@ -384,7 +384,12 @@ export class CodeStructureAnalyzer {
       }
 
       // ── Detect new block start ──
-      if (stack.length === 0 || stack[stack.length - 1].hasOpenedBrace) {
+      const topFrame = stack[stack.length - 1];
+      const canNestNow = stack.length === 0 ||
+                         (topFrame && (topFrame.hasOpenedBrace ||
+                          this.patterns.find(p => p.type === topFrame.type)?.requiresBrace === false));
+
+      if (canNestNow) {
         for (const p of sortedPatterns) {
           const match = trimmed.match(p.regex);
           if (match) {
@@ -418,7 +423,8 @@ export class CodeStructureAnalyzer {
         const frame = stack[stack.length - 1];
         frame.body.push(line);
 
-        const delta = this.countStructuralSymbols(line);
+        const isHtml = this.patterns === LANGUAGE_PATTERNS.html;
+        const delta = this.countStructuralSymbols(line, isHtml);
         frame.braceDepth += delta.brace;
         frame.bracketDepth += delta.bracket;
         frame.parenDepth += delta.paren;
@@ -429,7 +435,10 @@ export class CodeStructureAnalyzer {
         // ── Determine block end ──
         let isEnd = false;
 
-        if (frame.hasOpenedBrace && frame.braceDepth === 0) {
+        if (isHtml) {
+            // Simplified HTML block end: current tag balanced OR self-closing
+            if ((delta.generic < 0 || trimmed.endsWith('/>')) && frame.braceDepth === 0) isEnd = true;
+        } else if (frame.hasOpenedBrace && frame.braceDepth === 0) {
           // Braces balanced → block ended
           isEnd = true;
         } else if (!frame.hasOpenedBrace && !frame.type.match(/^(import|comment|type)$/)) {
@@ -486,7 +495,7 @@ export class CodeStructureAnalyzer {
    * Returns delta for braces, brackets, parens separately.
    * Tracks nested generics <>, template literals, and escaping.
    */
-  private countStructuralSymbols(line: string): { brace: number; bracket: number; paren: number; generic: number } {
+  private countStructuralSymbols(line: string, isHtml = false): { brace: number; bracket: number; paren: number; generic: number } {
     let brace = 0, bracket = 0, paren = 0, generic = 0;
     let ctx: ParseContext = ParseContext.Code;
     let escaped = false;
@@ -502,6 +511,11 @@ export class CodeStructureAnalyzer {
 
       switch (ctx) {
         case ParseContext.Code:
+          if (isHtml) {
+              if (char === '<' && nextChar !== '/') { generic++; }
+              else if (char === '<' && nextChar === '/') { generic--; }
+              else if (char === '>') { /* Tag closed, but we track nestedness by < and </ */ }
+          }
           if (char === '"' || char === "'") {
             ctx = ParseContext.String; stringChar = char;
           } else if (char === '`') {
@@ -853,6 +867,15 @@ export const LANGUAGE_PATTERNS: Record<string, BlockPattern[]> = {
     { type: 'comment', regex: /^\s*(?:\/\/|\/\*|\*)/, nameGroup: 0, canNest: false, requiresBrace: false, priority: 90 },
     { type: 'type', regex: /^\s*type\s+(\w+)\s+(?:struct|interface|func|map|chan|\[)/, nameGroup: 1, canNest: true, requiresBrace: true, priority: 80 },
     { type: 'function', regex: /^\s*func\s+(?:\([^)]*\)\s+)?(\w+)\s*\(/, nameGroup: 1, canNest: true, requiresBrace: true, priority: 50 },
+  ],
+  html: [
+    { type: 'comment', regex: /<!--/, nameGroup: 0, canNest: false, requiresBrace: false, priority: 90 },
+    { type: 'struct', regex: /<([a-zA-Z0-9-]+)(?:\s+[^>]*?)?>/, nameGroup: 1, canNest: true, requiresBrace: false, priority: 50 },
+  ],
+  css: [
+    { type: 'comment', regex: /\/\*/, nameGroup: 0, canNest: false, requiresBrace: false, priority: 90 },
+    { type: 'type', regex: /^\s*(@[\w-]+)/, nameGroup: 1, canNest: true, requiresBrace: true, priority: 80 },
+    { type: 'class', regex: /^\s*([.#\w][^{]*)\{/, nameGroup: 1, canNest: true, requiresBrace: true, priority: 50 },
   ],
 };
 

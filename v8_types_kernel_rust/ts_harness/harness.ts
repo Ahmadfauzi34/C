@@ -64,8 +64,60 @@ async function runHarness() {
     console.log(`Signature: ${searchResults[0].block.signature}`);
   }
 
+  // Phase 5: HTML/CSS Test
+  console.log('\n--- Phase 5: HTML/CSS Test ---');
+  const htmlContent = `
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Page</title>
+</head>
+<body>
+    <div id="main">
+        <h1>Hello World</h1>
+    </div>
+</body>
+</html>
+`;
+  const htmlAnalyzer = createAnalyzerForLanguage(htmlContent, 'html');
+  console.log('HTML Stats:', JSON.stringify(htmlAnalyzer.getStats(), null, 2));
+  console.log('HTML Blocks:', htmlAnalyzer.extractStructure().map(b => `${b.name} (${b.type})`).join(', '));
+
+  const cssContent = `
+body {
+    background: #fff;
+}
+#main {
+    color: red;
+}
+@media (max-width: 600px) {
+    #main {
+        color: blue;
+    }
+}
+`;
+  const cssAnalyzer = createAnalyzerForLanguage(cssContent, 'css');
+  console.log('CSS Stats:', JSON.stringify(cssAnalyzer.getStats(), null, 2));
+  console.log('CSS Blocks:', cssAnalyzer.extractStructure().map(b => `${b.name} (${b.type})`).join(', '));
+
+  // Phase 6: Go Test
+  console.log('\n--- Phase 6: Go Test ---');
+  const goContent = `
+package main
+import "fmt"
+type User struct {
+    Name string
+}
+func (u *User) Greet() {
+    fmt.Printf("Hello, %s\n", u.Name)
+}
+`;
+  const goAnalyzer = createAnalyzerForLanguage(goContent, 'go');
+  console.log('Go Stats:', JSON.stringify(goAnalyzer.getStats(), null, 2));
+  console.log('Go Blocks:', goAnalyzer.extractStructure().map(b => `${b.name} (${b.type})`).join(', '));
+
   // Sample surgical read
-  console.log('\n--- Phase 4: Surgical Read Test ---');
+  console.log('\n--- Phase 7: Surgical Read Test ---');
   const snippets = rustAnalyzer.surgicalRead('pub fn new', 2);
   console.log(`Found ${snippets.length} instances of "pub fn new".`);
   if (snippets.length > 0) {
