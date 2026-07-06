@@ -120,8 +120,26 @@ func (u *User) Greet() {
   console.log('Go Stats:', JSON.stringify(goAnalyzer.getStats(), null, 2));
   console.log('Go Blocks:', goAnalyzer.extractStructure().map(b => `${b.name} (${b.type})`).join(', '));
 
+  // Phase 8: Complex HTML Test
+  console.log('\n--- Phase 8: Complex HTML Test ---');
+  const complexHtml = `
+<div class="container" data-config='{"key": ">"}'>
+    <img src="logo.png" alt="logo">
+    <br />
+    <section>
+        <p>Nested <span>Text</span></p>
+        <input type="text" value="input > test">
+    </section>
+    <!-- Comment with <tag> inside -->
+</div>
+`;
+  const complexHtmlAnalyzer = createAnalyzerForLanguage(complexHtml, 'html');
+  const htmlBlocks = complexHtmlAnalyzer.extractStructure();
+  console.log('Complex HTML Blocks:');
+  htmlBlocks.forEach(b => console.log(`- ${b.name} (${b.type}, Depth: ${b.depth})`));
+
   // Sample surgical read
-  console.log('\n--- Phase 7: Surgical Read Test ---');
+  console.log('\n--- Phase 9: Surgical Read Test ---');
   const snippets = rustAnalyzer.surgicalRead('pub fn new', 2);
   console.log(`Found ${snippets.length} instances of "pub fn new".`);
   if (snippets.length > 0) {

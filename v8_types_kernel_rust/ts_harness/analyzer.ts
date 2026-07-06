@@ -59,6 +59,14 @@ export const ParserState = {
 
 export type ParserState = typeof ParserState[keyof typeof ParserState];
 
+/**
+ * HTML5 Void Elements that cannot have children.
+ */
+export const HTML_VOID_ELEMENTS = new Set([
+  'area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input',
+  'link', 'meta', 'source', 'track', 'wbr'
+]);
+
 interface BlockFrame {
   type: CodeBlock['type'];
   name: string;
@@ -336,6 +344,7 @@ export class CodeStructureAnalyzer {
 
     // Sort patterns by priority (highest first)
     const sortedPatterns = [...this.patterns].sort((a, b) => b.priority - a.priority);
+    const isHtml = this.patterns === LANGUAGE_PATTERNS.html;
 
     for (let i = 0; i < this.lineCount; i++) {
       const line = this.lines[i];
@@ -407,6 +416,9 @@ export class CodeStructureAnalyzer {
 
             const parentName = stack.length > 0 ? stack[stack.length - 1].name : null;
 
+            const isVoid = p.type === 'struct' && this.patterns === LANGUAGE_PATTERNS.html && HTML_VOID_ELEMENTS.has(name.toLowerCase());
+            const isSelfClosing = trimmed.endsWith('/>');
+
             stack.push({
               type: p.type,
               name,
@@ -415,13 +427,19 @@ export class CodeStructureAnalyzer {
               braceDepth: 0,
               bracketDepth: 0,
               parenDepth: 0,
-              genericDepth: 0,
+              genericDepth: (isHtml && !isVoid && !isSelfClosing) ? 1 : 0,
               hasOpenedBrace: false,
               body: [],
               contextStart: Math.max(0, i - this.contextRange),
               depth: stack.length,
               parentName,
             });
+
+            if (isVoid || isSelfClosing) {
+                const block = stack.pop()!;
+                const blockObj = this.buildBlock(block, i);
+                blocks.push(blockObj);
+            }
             break;
           }
         }
@@ -446,6 +464,8 @@ export class CodeStructureAnalyzer {
 
         if (isHtml) {
             // Simplified HTML block end: current tag balanced OR self-closing
+            // Note: genericDepth was initialized to 1 for non-void opening tags.
+            // When it reaches 0 (or lower via </tag>), the block ends.
             if ((frame.genericDepth <= 0 || trimmed.endsWith('/>')) && frame.braceDepth === 0) isEnd = true;
         } else if (frame.hasOpenedBrace && frame.braceDepth === 0) {
           // Braces balanced → block ended
@@ -502,8 +522,9 @@ export class CodeStructureAnalyzer {
    * Returns delta for braces, brackets, parens separately.
    * Tracks nested generics <>, template literals, and escaping.
    */
-  private countStructuralSymbols(line: string, isHtml = false): { brace: number; bracket: number; paren: number; generic: number } {
+  private countStructuralSymbols(line: string, isHtml = false): { brace: number; bracket: number; paren: number; generic: number; inAttr: boolean } {
     let brace = 0, bracket = 0, paren = 0, generic = 0;
+    let inAttr = false;
     let ctx: ParseContext = ParseContext.Code;
     let escaped = false;
     let stringChar: string | null = null;
@@ -519,9 +540,14 @@ export class CodeStructureAnalyzer {
       switch (ctx) {
         case ParseContext.Code:
           if (isHtml) {
-              if (char === '<' && nextChar !== '/') { generic++; }
-              else if (char === '<' && nextChar === '/') { generic--; }
-              else if (char === '>') { /* Tag closed, but we track nestedness by < and </ */ }
+              if (char === '<' && nextChar !== '/' && nextChar !== '!' && nextChar !== '?') {
+                  generic++;
+              } else if (char === '<' && nextChar === '/') {
+                  generic--;
+              } else if (char === '"' || char === "'") {
+                  // Potential HTML attribute start
+                  inAttr = true;
+              }
           }
           if (char === '"' || char === "'") {
             ctx = ParseContext.String; stringChar = char;
@@ -568,7 +594,7 @@ export class CodeStructureAnalyzer {
       }
     }
 
-    return { brace, bracket, paren };
+    return { brace, bracket, paren, generic, inAttr };
   }
 
   private findBacktickOutsideString(line: string): number {
@@ -876,8 +902,8 @@ export const LANGUAGE_PATTERNS: Record<string, BlockPattern[]> = {
     { type: 'function', regex: /^\s*func\s+(?:\([^)]*\)\s+)?(\w+)\s*\(/, nameGroup: 1, canNest: true, requiresBrace: true, priority: 50 },
   ],
   html: [
-    { type: 'comment', regex: /<!--/, nameGroup: 0, canNest: false, requiresBrace: false, priority: 90 },
-    { type: 'struct', regex: /<([a-zA-Z0-9-]+)(?:\s+[^>]*?)?>/, nameGroup: 1, canNest: true, requiresBrace: false, priority: 50 },
+    { type: 'comment', regex: /<!--/, nameGroup: 0, canNest: false, requiresBrace: false, priority: 100 },
+    { type: 'struct', regex: /<([a-zA-Z0-9:-]+)(?:\s+[^>]*?)?\/?>/, nameGroup: 1, canNest: true, requiresBrace: false, priority: 50 },
   ],
   css: [
     { type: 'comment', regex: /\/\*/, nameGroup: 0, canNest: false, requiresBrace: false, priority: 90 },
