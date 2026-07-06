@@ -67,6 +67,7 @@ interface BlockFrame {
   braceDepth: number;
   bracketDepth: number;    // ← NEW: track [] separately
   parenDepth: number;      // ← NEW: track () separately
+  genericDepth: number;    // ← NEW: track <> separately
   hasOpenedBrace: boolean;
   body: string[];
   contextStart: number;
@@ -385,9 +386,16 @@ export class CodeStructureAnalyzer {
 
       // ── Detect new block start ──
       const topFrame = stack[stack.length - 1];
-      const canNestNow = stack.length === 0 ||
-                         (topFrame && (topFrame.hasOpenedBrace ||
-                          this.patterns.find(p => p.type === topFrame.type)?.requiresBrace === false));
+      let canNestNow = stack.length === 0;
+
+      if (topFrame) {
+          const pattern = this.patterns.find(p => p.type === topFrame.type);
+          if (pattern?.canNest !== false) {
+              if (pattern?.requiresBrace === false || topFrame.hasOpenedBrace) {
+                  canNestNow = true;
+              }
+          }
+      }
 
       if (canNestNow) {
         for (const p of sortedPatterns) {
@@ -407,6 +415,7 @@ export class CodeStructureAnalyzer {
               braceDepth: 0,
               bracketDepth: 0,
               parenDepth: 0,
+              genericDepth: 0,
               hasOpenedBrace: false,
               body: [],
               contextStart: Math.max(0, i - this.contextRange),
@@ -428,7 +437,7 @@ export class CodeStructureAnalyzer {
         frame.braceDepth += delta.brace;
         frame.bracketDepth += delta.bracket;
         frame.parenDepth += delta.paren;
-        // Generic depth tracked but not yet used to block completion
+        frame.genericDepth += delta.generic;
 
         if (delta.brace > 0) frame.hasOpenedBrace = true;
 
@@ -437,20 +446,18 @@ export class CodeStructureAnalyzer {
 
         if (isHtml) {
             // Simplified HTML block end: current tag balanced OR self-closing
-            if ((delta.generic < 0 || trimmed.endsWith('/>')) && frame.braceDepth === 0) isEnd = true;
+            if ((frame.genericDepth <= 0 || trimmed.endsWith('/>')) && frame.braceDepth === 0) isEnd = true;
         } else if (frame.hasOpenedBrace && frame.braceDepth === 0) {
           // Braces balanced → block ended
           isEnd = true;
-        } else if (!frame.hasOpenedBrace && !frame.type.match(/^(import|comment|type)$/)) {
-          // Block that requires braces but never got one → one-liner
-          if (frame.type === 'function' && trimmed.endsWith(';')) {
-            isEnd = true;
-          }
-        } else if (frame.type === 'import' && trimmed.endsWith(';')) {
-          isEnd = true;
-        } else if (frame.type === 'type' && (trimmed.endsWith(';') || trimmed.includes('='))) {
-            // Simplified type end detection
-            if (trimmed.endsWith(';')) isEnd = true;
+        } else if (frame.type === 'comment') {
+           // Single line comment ends immediately unless multiline handled above
+           if (!inMultilineComment) isEnd = true;
+        } else if (frame.type === 'import' || frame.type === 'type') {
+           if (trimmed.endsWith(';')) isEnd = true;
+        } else if (!frame.hasOpenedBrace && frame.braceDepth === 0) {
+           // One-liner function/struct/etc.
+           if (trimmed.endsWith(';') || (frame.type === 'function' && trimmed.endsWith('}'))) isEnd = true;
         }
 
         if (isEnd) {

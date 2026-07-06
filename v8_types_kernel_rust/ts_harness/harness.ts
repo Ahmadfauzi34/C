@@ -49,6 +49,10 @@ async function runHarness() {
   const functions = rustAnalyzer.getBlocksByType('function');
   console.log(`Found ${functions.length} functions.`);
 
+  const rustBlocks = rustAnalyzer.extractStructure();
+  console.log('Sample Rust Blocks (first 10):');
+  rustBlocks.slice(0, 10).forEach(b => console.log(`- ${b.name} (${b.type}, Depth: ${b.depth})`));
+
   const traits = rustAnalyzer.getBlocksByType('interface');
   console.log(`Found ${traits.length} traits.`);
 
