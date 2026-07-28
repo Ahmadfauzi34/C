@@ -10,3 +10,6 @@ node_modules
 
 # Tapi biarkan .gitkeep
 !/artifacts/wasm/.gitkeep
+
+/wasm/*.wasm
+!/wasm/.gitkeep

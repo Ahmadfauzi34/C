@@ -19,6 +19,7 @@ try {
 function resolveWasmPath() {
   const candidates = [
     process.env.WASM_ECHO_PATH,
+    path.resolve(__dirname, "../../wasm/wasm-echo.wasm"),
     path.resolve(__dirname, "../../artifacts/wasm/wasm-echo.wasm"),
     path.resolve(__dirname, "../../target/wasm32-wasip1/release/wasm-echo.wasm"),
   ].filter(Boolean);
